@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
+    </Filter>
+    <Filter Include="xml">
+      <UniqueIdentifier>{8f20b321-da28-430d-b804-e622f3a28fb1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="sip">
+      <UniqueIdentifier>{0f7dc830-4f43-4675-bca4-7636e28234da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ps">
+      <UniqueIdentifier>{4c488085-a833-4f9b-b275-388fcf88381a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="stream">
+      <UniqueIdentifier>{a1ade9c5-9bcb-4bd9-9ef7-7615ccc18d93}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="config">
+      <UniqueIdentifier>{d78e3f99-92c7-430e-8659-75757d5b1515}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="v3Media.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="communicationHi.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="XmlParse.cpp">
+      <Filter>xml</Filter>
+    </ClCompile>
+    <ClCompile Include="tinyxml\tinyxmlparser.cpp">
+      <Filter>xml</Filter>
+    </ClCompile>
+    <ClCompile Include="tinyxml\tinyxmlerror.cpp">
+      <Filter>xml</Filter>
+    </ClCompile>
+    <ClCompile Include="tinyxml\tinyxml.cpp">
+      <Filter>xml</Filter>
+    </ClCompile>
+    <ClCompile Include="tinyxml\tinystr.cpp">
+      <Filter>xml</Filter>
+    </ClCompile>
+    <ClCompile Include="SipV3.cpp">
+      <Filter>sip</Filter>
+    </ClCompile>
+    <ClCompile Include="psmux\psmux.cpp">
+      <Filter>ps</Filter>
+    </ClCompile>
+    <ClCompile Include="GB28181Stream.cpp">
+      <Filter>stream</Filter>
+    </ClCompile>
+    <ClCompile Include="Stream.cpp">
+      <Filter>stream</Filter>
+    </ClCompile>
+    <ClCompile Include="VtduServer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ConfigFileParse.cpp">
+      <Filter>config</Filter>
+    </ClCompile>
+    <ClCompile Include="CommDef.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ConfigFile\inifile.cpp">
+      <Filter>config</Filter>
+    </ClCompile>
+    <ClCompile Include="ConfigFile\stringutil.cpp">
+      <Filter>config</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="communicationHi.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CommDef.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="XmlParse.h">
+      <Filter>xml</Filter>
+    </ClInclude>
+    <ClInclude Include="tinyxml\tinyxml.h">
+      <Filter>xml</Filter>
+    </ClInclude>
+    <ClInclude Include="tinyxml\tinystr.h">
+      <Filter>xml</Filter>
+    </ClInclude>
+    <ClInclude Include="SipV3.h">
+      <Filter>sip</Filter>
+    </ClInclude>
+    <ClInclude Include="psmux\psmux.h">
+      <Filter>ps</Filter>
+    </ClInclude>
+    <ClInclude Include="GB28181Stream.h">
+      <Filter>stream</Filter>
+    </ClInclude>
+    <ClInclude Include="Stream.h">
+      <Filter>stream</Filter>
+    </ClInclude>
+    <ClInclude Include="VtduServer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ConfigFileParse.h">
+      <Filter>config</Filter>
+    </ClInclude>
+    <ClInclude Include="ConfigFile\inifile.h">
+      <Filter>config</Filter>
+    </ClInclude>
+    <ClInclude Include="ConfigFile\stringutil.h">
+      <Filter>config</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+</Project>
