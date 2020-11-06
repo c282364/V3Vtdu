@@ -1,4 +1,4 @@
-#include "GB28181Stream.h"
+#include "GBRtpPsOverUdpStream.h"
 #include <iostream>
 #include <time.h>
 #include <string.h>
@@ -62,7 +62,7 @@ unsigned int __stdcall threadRecvV3(void *pParam)
         printf("threadRecvV3, para is NULL!\n");
         return -1;
     }
-    GB28181Stream* pHandle = (GB28181Stream *)pParam;
+    GBRtpPsOverUdpStream* pHandle = (GBRtpPsOverUdpStream *)pParam;
     pHandle->V3StreamWorking();
     return 0;
 }
@@ -77,12 +77,12 @@ unsigned int __stdcall threadRecvHi(void *pParam)
         printf("threadRecvHi, para is NULL!\n");
         return -1;
     }
-    GB28181Stream* pHandle = (GB28181Stream *)pParam;
+    GBRtpPsOverUdpStream* pHandle = (GBRtpPsOverUdpStream *)pParam;
     pHandle->HiStreamWorking();
     return 0;
 }
 
-GB28181Stream::GB28181Stream(std::string strPuInfo, int nPortRecv, std::string strLocalIp)
+GBRtpPsOverUdpStream::GBRtpPsOverUdpStream(std::string strPuInfo, int nPortRecv, std::string strLocalIp)
 {
     m_nOutNum = 0;
     m_nRecvPort = nPortRecv;
@@ -105,7 +105,7 @@ GB28181Stream::GB28181Stream(std::string strPuInfo, int nPortRecv, std::string s
 
     m_strPuInfo = strPuInfo;
 }
-GB28181Stream::~GB28181Stream()
+GBRtpPsOverUdpStream::~GBRtpPsOverUdpStream()
 {
     stop();
 }
@@ -118,7 +118,7 @@ GB28181Stream::~GB28181Stream()
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::start(bool bTans)
+int GBRtpPsOverUdpStream::start(bool bTans)
 {
     m_bTrans = bTans;
 
@@ -129,7 +129,7 @@ int GB28181Stream::start(bool bTans)
         return -1;
     }
 
-    m_fdRtpRecv = createFd(m_nRecvPort, false, m_strLocalIp);
+    m_fdRtpRecv = createFdUdp(m_nRecvPort, false, m_strLocalIp);
     if (m_fdRtpRecv <= 0)
     {
         stop();
@@ -137,7 +137,7 @@ int GB28181Stream::start(bool bTans)
     }
 
     int iRtcpRecvPort = m_nRecvPort + 1;
-    m_fdRtcpRecv = createFd(iRtcpRecvPort, true, m_strLocalIp);
+    m_fdRtcpRecv = createFdUdp(iRtcpRecvPort, true, m_strLocalIp);
     if (m_fdRtcpRecv <= 0)
     {
         stop();
@@ -194,7 +194,7 @@ int GB28181Stream::start(bool bTans)
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::stop()
+int GBRtpPsOverUdpStream::stop()
 {
     //释放所有socket
     if (false == m_bWorkStop)
@@ -252,7 +252,7 @@ int GB28181Stream::stop()
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::addOneSend(const std::string &strClientIp, int nClientPort, const std::string &strCuUserID, int nSendPort)
+int GBRtpPsOverUdpStream::addOneSend(const std::string &strClientIp, int nClientPort, const std::string &strCuUserID, int nSendPort)
 {
     //添加到发送列表。
     struct sockaddr_in sockaddrV3Clinet;
@@ -262,7 +262,7 @@ int GB28181Stream::addOneSend(const std::string &strClientIp, int nClientPort, c
 
     stSendClientInfo curSendClientInfo;
 
-    curSendClientInfo.fdSend = createFd(nSendPort, true, m_strLocalIp);
+    curSendClientInfo.fdSend = createFdUdp(nSendPort, true, m_strLocalIp);
     if (curSendClientInfo.fdSend <= 0)
     {
         return -1;
@@ -288,7 +288,7 @@ int GB28181Stream::addOneSend(const std::string &strClientIp, int nClientPort, c
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::DelOneSend(const std::string &strCuUserID, int &nCurSendPort)
+int GBRtpPsOverUdpStream::DelOneSend(const std::string &strCuUserID, int &nCurSendPort)
 {
     int nSendNum = 0;
     //删除发送列表
@@ -320,7 +320,7 @@ int GB28181Stream::DelOneSend(const std::string &strCuUserID, int &nCurSendPort)
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::getRecvPort(int &nRecvPort)
+int GBRtpPsOverUdpStream::getRecvPort(int &nRecvPort)
 {
     nRecvPort = m_nRecvPort;
     return 0;
@@ -334,7 +334,7 @@ int GB28181Stream::getRecvPort(int &nRecvPort)
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::getOutstreamNum(int &nOutstreamNum)
+int GBRtpPsOverUdpStream::getOutstreamNum(int &nOutstreamNum)
 {
     nOutstreamNum = m_nOutNum;
     return 0;
@@ -350,7 +350,7 @@ int GB28181Stream::getOutstreamNum(int &nOutstreamNum)
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::inputFrameData(unsigned char* pFrameData, int iFrameLen, unsigned long long i64TimeStamp)
+int GBRtpPsOverUdpStream::inputFrameData(unsigned char* pFrameData, int iFrameLen, unsigned long long i64TimeStamp)
 {
     //static unsigned long ulTimeStamp = 0; //(unsigned long)i64TimeStamp;
     //ulTimeStamp += 3000;
@@ -413,7 +413,7 @@ int GB28181Stream::inputFrameData(unsigned char* pFrameData, int iFrameLen, unsi
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::sendOneBlock(unsigned char *pBlockData, int iBlockLen, unsigned long ulIndex, unsigned long ulTimeStamp, bool bEndHead)
+int GBRtpPsOverUdpStream::sendOneBlock(unsigned char *pBlockData, int iBlockLen, unsigned long ulIndex, unsigned long ulTimeStamp, bool bEndHead)
 {
     int len = 0;
 
@@ -523,9 +523,9 @@ int GB28181Stream::sendOneBlock(unsigned char *pBlockData, int iBlockLen, unsign
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void GB28181Stream::V3StreamWorking()
+void GBRtpPsOverUdpStream::V3StreamWorking()
 {
-    printf("begin GB28181Stream::V3StreamWorking\n");
+    printf("begin GBRtpPsOverUdpStream::V3StreamWorking\n");
     const int iRecvBuffLen = 4096;
     char szRecvBuff[iRecvBuffLen] = { 0 };
     long long i64LastTime = Comm_GetMilliSecFrom1970();
@@ -637,7 +637,7 @@ void GB28181Stream::V3StreamWorking()
             }
         }
     }
-    printf("end GB28181Stream::V3StreamWorking\n");
+    printf("end GBRtpPsOverUdpStream::V3StreamWorking\n");
     return ;
 }
 
@@ -649,9 +649,9 @@ void GB28181Stream::V3StreamWorking()
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void GB28181Stream::HiStreamWorking()
+void GBRtpPsOverUdpStream::HiStreamWorking()
 {
-    printf("begin GB28181Stream::HiStreamWorking\n");
+    printf("begin GBRtpPsOverUdpStream::HiStreamWorking\n");
     const int iRecvBuffLen = 4096;
     char szRecvBuff[iRecvBuffLen] = { 0 };
     long long i64LastTime = Comm_GetMilliSecFrom1970();
@@ -745,7 +745,7 @@ void GB28181Stream::HiStreamWorking()
     }
 
     return;
-    printf("end GB28181Stream::HiStreamWorking\n");
+    printf("end GBRtpPsOverUdpStream::HiStreamWorking\n");
 }
 
 //rtcp结构体转成字节数组,参数都要求输入网络字节序
@@ -762,7 +762,7 @@ void GB28181Stream::HiStreamWorking()
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int GB28181Stream::makeRtcpPacketBuff(unsigned long ulSenderId, unsigned long ssrc,
+int GBRtpPsOverUdpStream::makeRtcpPacketBuff(unsigned long ulSenderId, unsigned long ssrc,
     unsigned long ulTimeStamp, unsigned short usSeq, unsigned char *pOutBuff)
 {
     //DEBUG_LOG_MEDIAGATE("sender:%lu, ssrc:%lu, time:%lu, seq:%lu", ulSenderId, ssrc, ulTimeStamp, ulSeq);

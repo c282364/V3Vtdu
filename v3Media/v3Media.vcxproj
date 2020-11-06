@@ -97,7 +97,7 @@
     <ClCompile Include="ConfigFileParse.cpp" />
     <ClCompile Include="ConfigFile\inifile.cpp" />
     <ClCompile Include="ConfigFile\stringutil.cpp" />
-    <ClCompile Include="GB28181Stream.cpp" />
+    <ClCompile Include="GBRtpPsOverUdpStream.cpp" />
     <ClCompile Include="psmux\psmux.cpp" />
     <ClCompile Include="SipV3.cpp" />
     <ClCompile Include="stdafx.cpp" />
@@ -116,7 +116,7 @@
     <ClInclude Include="ConfigFileParse.h" />
     <ClInclude Include="ConfigFile\inifile.h" />
     <ClInclude Include="ConfigFile\stringutil.h" />
-    <ClInclude Include="GB28181Stream.h" />
+    <ClInclude Include="GBRtpPsOverUdpStream.h" />
     <ClInclude Include="psmux\psmux.h" />
     <ClInclude Include="SipV3.h" />
     <ClInclude Include="stdafx.h" />

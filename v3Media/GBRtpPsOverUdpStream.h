@@ -17,11 +17,11 @@
 #include "psmux.h"
 #include "Stream.h"
 
-class GB28181Stream :public Stream
+class GBRtpPsOverUdpStream :public Stream
 {
 public:
-    GB28181Stream(std::string strPuInfo, int nPortRecv, std::string strLocalIp);
-    ~GB28181Stream();
+    GBRtpPsOverUdpStream(std::string strPuInfo, int nPortRecv, std::string strLocalIp);
+    ~GBRtpPsOverUdpStream();
 
     /**************************************************************************
     * name          : start

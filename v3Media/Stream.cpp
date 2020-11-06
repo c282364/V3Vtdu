@@ -1,7 +1,7 @@
 #include "Stream.h"
 
 /**************************************************************************
-* name          : createFd
+* name          : createFdUdp
 * description   : 创建socket
 * input         : port 端口
 *                 bSend 是否需要发送数据
@@ -10,7 +10,7 @@
 * return        : 0表示成功 小于零失败 具体见错误码定义
 * remark        : NA
 **************************************************************************/
-int createFd(int port, bool bSend, const std::string &strIp)
+int createFdUdp(int port, bool bSend, const std::string &strIp)
 {
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0)

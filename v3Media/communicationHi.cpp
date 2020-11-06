@@ -23,10 +23,10 @@ communicationHi::~communicationHi()
 **************************************************************************/
 int communicationHi::Init(const ConfigSipServer &configSipServer)
 {
-    m_fd2Vtdu = createFd(configSipServer.m_iVtdu2HiPort, true, configSipServer.m_strSipAddr);
+    m_fd2Vtdu = createFdUdp(configSipServer.m_iVtdu2HiPort, true, configSipServer.m_strSipAddr);
     if (m_fd2Vtdu <= 0)
     {
-        printf("createFd m_fd2Vtdu failed,port:%d\n", configSipServer.m_iVtdu2HiPort);
+        printf("createFdUdp m_fd2Vtdu failed,port:%d\n", configSipServer.m_iVtdu2HiPort);
         return -1;
     }
 

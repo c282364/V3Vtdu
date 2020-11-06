@@ -786,7 +786,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
             if (0 > nRet)
             {
                 nStatus = 400;
-                strError = "GB28181Stream addOneSend failed!";
+                strError = "GBRtpPsOverUdpStream addOneSend failed!";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
                 mtSendV3Port.lock();
@@ -827,11 +827,11 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
 
             stCurMediaInfo.nVtduRecvPort = nRecvPort;
 
-            GB28181Stream* pStreamHanlde = new(std::nothrow) GB28181Stream(strPuInfo, nRecvPort, m_configSipServer.m_strSipAddr);
+            GBRtpPsOverUdpStream* pStreamHanlde = new(std::nothrow) GBRtpPsOverUdpStream(strPuInfo, nRecvPort, m_configSipServer.m_strSipAddr);
             if (NULL == pStreamHanlde)
             {
                 nStatus = 400;
-                strError = "New GB28181Stream object failed!";
+                strError = "New GBRtpPsOverUdpStream object failed!";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 mtSendV3Port.lock();
                 g_vecSendV3Port.push_back(nSendV3Port);
@@ -848,7 +848,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
             if (nRet < 0)
             {
                 nStatus = 400;
-                strError = "GB28181Stream start failed!";
+                strError = "GBRtpPsOverUdpStream start failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 mtSendV3Port.lock();
@@ -867,7 +867,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
             {
                 pStreamHanlde->stop();
                 nStatus = 400;
-                strError = "GB28181Stream start failed!";
+                strError = "GBRtpPsOverUdpStream start failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 mtSendV3Port.lock();
@@ -1213,7 +1213,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         std::string strPuInfo = (std::string)szPuInfo;
         //回放不需要重复任务判断
         bool bExitTask = false;
-        GB28181Stream *poStream = NULL;
+        GBRtpPsOverUdpStream *poStream = NULL;
 
         //查找可使用端口
         int nRecvPort = -1;
@@ -1260,11 +1260,11 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         stCurMediaInfo.nVtduSendPort = nSendV3Port;
 
         //启动
-        GB28181Stream* pStreamHanlde = new(std::nothrow) GB28181Stream(strPuInfo, nRecvPort, m_configSipServer.m_strSipAddr);
+        GBRtpPsOverUdpStream* pStreamHanlde = new(std::nothrow) GBRtpPsOverUdpStream(strPuInfo, nRecvPort, m_configSipServer.m_strSipAddr);
         if (NULL == pStreamHanlde)
         {
             nStatus = 400;
-            strError = "New GB28181Stream object failed!";
+            strError = "New GBRtpPsOverUdpStream object failed!";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             mtSendV3Port.lock();
             g_vecSendV3Port.push_back(nSendV3Port);
@@ -1281,7 +1281,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         if (nRet < 0)
         {
             nStatus = 400;
-            strError = "GB28181Stream start failed!";
+            strError = "GBRtpPsOverUdpStream start failed!";
             delete pStreamHanlde;
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             mtSendV3Port.lock();
@@ -1300,7 +1300,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         {
             pStreamHanlde->stop();
             nStatus = 400;
-            strError = "GB28181Stream start failed!";
+            strError = "GBRtpPsOverUdpStream start failed!";
             delete pStreamHanlde;
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             mtSendV3Port.lock();

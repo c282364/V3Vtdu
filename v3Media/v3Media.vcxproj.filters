@@ -60,9 +60,6 @@
     <ClCompile Include="psmux\psmux.cpp">
       <Filter>ps</Filter>
     </ClCompile>
-    <ClCompile Include="GB28181Stream.cpp">
-      <Filter>stream</Filter>
-    </ClCompile>
     <ClCompile Include="Stream.cpp">
       <Filter>stream</Filter>
     </ClCompile>
@@ -80,6 +77,9 @@
     </ClCompile>
     <ClCompile Include="ConfigFile\stringutil.cpp">
       <Filter>config</Filter>
+    </ClCompile>
+    <ClCompile Include="GBRtpPsOverUdpStream.cpp">
+      <Filter>stream</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -110,9 +110,6 @@
     <ClInclude Include="psmux\psmux.h">
       <Filter>ps</Filter>
     </ClInclude>
-    <ClInclude Include="GB28181Stream.h">
-      <Filter>stream</Filter>
-    </ClInclude>
     <ClInclude Include="Stream.h">
       <Filter>stream</Filter>
     </ClInclude>
@@ -127,6 +124,9 @@
     </ClInclude>
     <ClInclude Include="ConfigFile\stringutil.h">
       <Filter>config</Filter>
+    </ClInclude>
+    <ClInclude Include="GBRtpPsOverUdpStream.h">
+      <Filter>stream</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
