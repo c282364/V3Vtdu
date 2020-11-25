@@ -38,6 +38,7 @@
 #include <map>
 #include <vector>
 #include <mutex>
+#include <thread>
 //****************************枚举定义***************************************
 
 //视频任务类型

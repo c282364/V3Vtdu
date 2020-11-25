@@ -15,6 +15,7 @@
 #include <mutex>
 #include "psmux.h"
 #include "Stream.h"
+#include <thread>
 
 class GBRtpPsOverUdpStream :public Stream
 {
@@ -155,8 +156,8 @@ public:
     bool m_bTrans;  //是否需要转码
 private:
     bool m_bWorkStop;       //工作线程停止标志
-    HANDLE m_hWorkThreadV3; //v3流接收线程句柄
-    HANDLE m_hWorkThreadHi; //转码模块流接收线程句柄
+    std::thread m_hWorkThreadV3; //v3流接收线程句柄
+    std::thread m_hWorkThreadHi; //转码模块流接收线程句柄
 
     int m_fdRtpRecv;  //rtp接收socket
     int m_fdRtcpRecv; //rtcp接收socket

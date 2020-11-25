@@ -1,4 +1,4 @@
-#include "GBRtpPsOverUdpStream.h"
+#include "GBRtpPsStream.h"
 #include <iostream>
 #include <time.h>
 #include <string.h>
@@ -89,8 +89,8 @@ GBRtpPsOverUdpStream::GBRtpPsOverUdpStream(std::string strPuInfo, int nPortRecv,
 
     m_bTrans = false;
     m_bWorkStop = true;
-    m_hWorkThreadV3 = NULL;
-    m_hWorkThreadHi = NULL;
+    //m_hWorkThreadV3 = NULL;
+    //m_hWorkThreadHi = NULL;
     m_fdRtpRecv = -1;
     m_fdRtcpRecv = -1;
 
@@ -148,39 +148,38 @@ int GBRtpPsOverUdpStream::start(bool bTans)
     if (!bTans)
     {
 #ifdef WIN32
-        m_hWorkThreadV3 = (HANDLE)_beginthreadex(
-            NULL,
-            0,
-            threadRecvV3,
-            this,
-            0,
-            NULL);
-#else
-
+        m_hWorkThreadV3 = std::thread(&GBRtpPsOverUdpStream::V3StreamWorking, this);
+        //m_hWorkThreadV3 = (HANDLE)_beginthreadex(
+        //    NULL,
+        //    0,
+        //    threadRecvV3,
+        //    this,
+        //    0,
+        //    NULL);
 #endif
-        if (0 >= m_hWorkThreadV3)
-        {
-            stop();
-            return -1;
-        }
+        //if (0 >= m_hWorkThreadV3)
+        //{
+        //    stop();
+        //    return -1;
+        //}
     }
     else
     {
 #ifdef WIN32
-        m_hWorkThreadHi = (HANDLE)_beginthreadex(
-            NULL,
-            0,
-            threadRecvHi,
-            this,
-            0,
-            NULL);
-#else
+        m_hWorkThreadHi = std::thread(&GBRtpPsOverUdpStream::HiStreamWorking, this);
+        //m_hWorkThreadHi = (HANDLE)_beginthreadex(
+        //    NULL,
+        //    0,
+        //    threadRecvHi,
+        //    this,
+        //    0,
+        //    NULL);
 #endif
-        if (0 >= m_hWorkThreadHi)
-        {
-            stop();
-            return -1;
-        }
+        //if (0 >= m_hWorkThreadHi)
+        //{
+        //    stop();
+        //    return -1;
+        //}
     }
 
     return 0;
@@ -200,19 +199,28 @@ int GBRtpPsOverUdpStream::stop()
     if (false == m_bWorkStop)
     {
         m_bWorkStop = true;
-        if (0 < m_hWorkThreadV3)
+        if (m_hWorkThreadV3.joinable())
         {
-            WaitForSingleObject(m_hWorkThreadV3, INFINITE);
-            CloseHandle(m_hWorkThreadV3);
-            m_hWorkThreadHi = 0;
+            m_hWorkThreadV3.join();
         }
+
+        if (m_hWorkThreadHi.joinable())
+        {
+            m_hWorkThreadHi.join();
+        }
+        //if (0 < m_hWorkThreadV3)
+        //{
+        //    WaitForSingleObject(m_hWorkThreadV3, INFINITE);
+        //    CloseHandle(m_hWorkThreadV3);
+        //    m_hWorkThreadHi = 0;
+        //}
         
-        if (m_bTrans && 0 < m_hWorkThreadHi)
+/*        if (m_bTrans && 0 < m_hWorkThreadHi)
         {
             WaitForSingleObject(m_hWorkThreadHi, INFINITE);
             CloseHandle(m_hWorkThreadHi);
             m_hWorkThreadHi = 0;
-        }  
+        } */ 
     }
 
     mtSendList.lock();

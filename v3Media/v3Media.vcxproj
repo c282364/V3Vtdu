@@ -73,7 +73,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>./osip/include;./tinyxml;./psmux;./ConfigFile;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./osip/include;./tinyxml;./psmux;./ConfigFile;./jrtplib/include/jrtplib3;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -82,8 +82,8 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>osipparser2.lib;osip2.lib;eXosip.lib;Dnsapi.lib;Iphlpapi.lib;ws2_32.lib;Qwave.lib;delayimp.lib;legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>./osip/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>osipparser2.lib;osip2.lib;eXosip.lib;Dnsapi.lib;Iphlpapi.lib;ws2_32.lib;Qwave.lib;delayimp.lib;legacy_stdio_definitions.lib;jrtplib.lib;jthread.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>./osip/lib;./jrtplib/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -97,7 +97,7 @@
     <ClCompile Include="ConfigFileParse.cpp" />
     <ClCompile Include="ConfigFile\inifile.cpp" />
     <ClCompile Include="ConfigFile\stringutil.cpp" />
-    <ClCompile Include="GBRtpPsOverUdpStream.cpp" />
+    <ClCompile Include="GBRtpPsStream.cpp" />
     <ClCompile Include="psmux\psmux.cpp" />
     <ClCompile Include="SipV3.cpp" />
     <ClCompile Include="stdafx.cpp" />
@@ -116,7 +116,7 @@
     <ClInclude Include="ConfigFileParse.h" />
     <ClInclude Include="ConfigFile\inifile.h" />
     <ClInclude Include="ConfigFile\stringutil.h" />
-    <ClInclude Include="GBRtpPsOverUdpStream.h" />
+    <ClInclude Include="GBRtpPsStream.h" />
     <ClInclude Include="psmux\psmux.h" />
     <ClInclude Include="SipV3.h" />
     <ClInclude Include="stdafx.h" />

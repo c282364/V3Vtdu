@@ -78,7 +78,7 @@
     <ClCompile Include="ConfigFile\stringutil.cpp">
       <Filter>config</Filter>
     </ClCompile>
-    <ClCompile Include="GBRtpPsOverUdpStream.cpp">
+    <ClCompile Include="GBRtpPsStream.cpp">
       <Filter>stream</Filter>
     </ClCompile>
   </ItemGroup>
@@ -125,7 +125,7 @@
     <ClInclude Include="ConfigFile\stringutil.h">
       <Filter>config</Filter>
     </ClInclude>
-    <ClInclude Include="GBRtpPsOverUdpStream.h">
+    <ClInclude Include="GBRtpPsStream.h">
       <Filter>stream</Filter>
     </ClInclude>
   </ItemGroup>
