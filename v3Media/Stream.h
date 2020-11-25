@@ -1,6 +1,5 @@
 #pragma once
 #ifdef WIN32
-#include <Windows.h>
 #include <process.h>
 #include <ctime>
 #include <cstdlib>

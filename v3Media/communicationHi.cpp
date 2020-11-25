@@ -62,7 +62,7 @@ int communicationHi::StartEventLoop(fHiEventCB fnCB, void *pParam)
     m_pEventCBParam = pParam;
 
     //处理hi模块消息线程 //tbd放到communicationHi模块
-    std::thread ThHiMsgLoop(&communicationHi::threadHiMsgLoop, this);
+    static std::thread ThHiMsgLoop(&communicationHi::threadHiMsgLoop, this);
     return 0;
 }
 

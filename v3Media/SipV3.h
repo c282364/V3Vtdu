@@ -18,15 +18,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef WIN32
-#include <Windows.h>
 #include <process.h>
+#else
+#include <pthread.h>
 #endif
 #include "tinyxml.h"
 #include <string>
 #include <vector>
 #include <mutex>
 #include <map>
-#include "GBRtpPsOverUdpStream.h"
+#include "GBRtpPsStream.h"
 #include "CommDef.h"
 
 /**************************************************************************

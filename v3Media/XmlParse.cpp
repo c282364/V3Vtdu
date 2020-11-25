@@ -132,6 +132,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     if (NULL == pXmlElementCuUserType)
     {
         printf("cannot find CU UserType\n");
+        stCurMediaInfo.nCuUserType = 1;
     }
     else
     {
@@ -143,6 +144,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     if (NULL == pXmlElementCuGBVideoTransMode)
     {
         printf("cannot find CU GBVideoTransMode\n");
+        stCurMediaInfo.strCuGBVideoTransMode = "UDP";
     }
     else
     {
@@ -814,6 +816,14 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
             break;
         }
         stCurHi.strSipRegion = pXmlElementSipRegion->GetText();
+
+        TiXmlElement *pXmlElementSipIp = pXmlElementHiInfo->FirstChildElement("HI_SipIp");
+        if (NULL == pXmlElementSipIp)
+        {
+            printf("HandleHiHeartBeat cannot find pXmlElementSipIp\r\n%s\n", szBody);
+            break;
+        }
+        stCurHi.strSipIp = pXmlElementSipIp->GetText();
 
         TiXmlElement *pXmlElementSipPort = pXmlElementHiInfo->FirstChildElement("HI_SipPort");
         if (NULL == pXmlElementSipPort)

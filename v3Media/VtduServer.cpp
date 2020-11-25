@@ -183,16 +183,16 @@ int VtduServer::Start()
     g_nRegid = SipUA_RegisterV3(m_configSipServer, false, g_nRegid);
 
     //启动转码服务器管理线程，心跳超过60秒未收到 判断离线。停止对应接收线程，注销转码服务器
-    std::thread ThHiManager(&VtduServer::threadHiManager, this);
+    static std::thread ThHiManager(&VtduServer::threadHiManager, this);
 
     //注册v3线程
-    std::thread ThRegLoop(&VtduServer::threadRegLoop, this);
+    static std::thread ThRegLoop(&VtduServer::threadRegLoop, this);
 
     //v3心跳线程
-    std::thread ThHeartBeat(&VtduServer::threadHeartBeat, this);
+    static std::thread ThHeartBeat(&VtduServer::threadHeartBeat, this);
 
     //处理断流回调消息线程
-    std::thread ThCBWorkingThread(&VtduServer::threadStreamCBMsgLoop, this);
+    static std::thread ThCBWorkingThread(&VtduServer::threadStreamCBMsgLoop, this);
 
     return 0;
 }
@@ -228,7 +228,8 @@ void VtduServer::threadHiManager()
         std::map<std::string, stHiInfo>::iterator iotr = g_mapRegHiInfo.begin();
         for (; iotr != g_mapRegHiInfo.end(); )
         {
-            if (nCurTime - iotr->second.nHeartBeat > 60)
+            //15秒没有心跳 判断离线
+            if (nCurTime - iotr->second.nHeartBeat > 15)
             {
                 //停止接收 回收该模块所有端口
                 mtVtduPreviewTask.lock();
@@ -732,6 +733,25 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
     }
     else
     {
+   //     if (stCurMediaInfo.nCuTransType != 0
+   //         || (stCurMediaInfo.nCuUserType == 1 && stCurMediaInfo.strCuGBVideoTransMode != "UDP")
+   //         || stCurMediaInfo.nPuTransType != 0)
+   //     {
+   //         strError = "unsupport Protocol";
+   //         iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+   //         //回复状态
+   //         SipUA_AnswerInfo(pMsgPtr, 400, pszBody, iBodyLen);
+   //         printf("unsupport Protocol.\n");
+			//
+			//return;
+   //     }
+
+        //非国标的私有流不转码
+        if (stCurMediaInfo.nPuProtocol != 1)
+        {
+            stCurMediaInfo.bTrans = false;
+        }
+        
         int nInitialUser = 1;
         bool bTrans = stCurMediaInfo.bTrans;
         //遍历存在的任务，
@@ -1207,6 +1227,11 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
     }
     else
     {
+        //非国标的私有流不转码
+        if (stCurMediaInfo.nPuProtocol != 1)
+        {
+            stCurMediaInfo.bTrans = false;
+        }
         bool bTrans = stCurMediaInfo.bTrans;
         char szPuInfo[100] = { 0 };
         sprintf(szPuInfo, "%s_%s_%d", stCurMediaInfo.strCuSession.c_str(), stCurMediaInfo.strCuUserID.c_str(), bTrans);
@@ -1808,5 +1833,314 @@ void VtduServer::HandleHiCutout(char *pMsgPtr, char* szSendBuff, int* nSendBufLe
         }
 
         return;
+    }
+}
+
+/**************************************************************************
+* name          : sipServerHandleV3TransReadyTest
+* description   : 处理v3预览请求 测试函数
+* input         : pMsgPtr   v3消息
+* output        : NA
+* return        : NA
+* remark        : NA
+**************************************************************************/
+void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
+{
+    int nStatus = 200;
+    std::string strError = "";
+   // stCurMediaInfo.bTrans = false;
+
+    stCurMediaInfo.strVtduRecvIp = m_configSipServer.m_strSipAddr;
+    stCurMediaInfo.strVtduSendIP = m_configSipServer.m_strSipAddr;
+
+    char pszBody[4096] = { 0 };
+    int iBodyLen = 0;
+    if (nStatus != 200)
+    {
+        return;
+    }
+    else
+    {
+        int nInitialUser = 1;
+        bool bTrans = stCurMediaInfo.bTrans;
+        //遍历存在的任务，
+         //如果有视频源相同且目标分辨率相同的任务(暂时用是否转码，后续按要求转到对应分辨率)，把当前任务添加到已存在任务，添加一个发送。
+        char szPuInfo[100] = { 0 };
+        sprintf(szPuInfo, "%s_%d_%d_%d", stCurMediaInfo.strPUID.c_str(), stCurMediaInfo.nPuChannelID, stCurMediaInfo.nPuStreamType, bTrans);
+        std::string strPuInfo = (std::string)szPuInfo;
+
+        bool bExitTask = false;
+        Stream *poStream = NULL;
+        int nExitTaskRecvPort = 0;
+        std::string strExitTaskRecvIp = "";
+
+        mtVtduPreviewTask.lock();
+        std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
+        if (itorTask != g_mapVtduPreviewTaskInfo.end())
+        {
+            bExitTask = true;
+            poStream = (Stream *)itorTask->second.pStream;
+            nExitTaskRecvPort = itorTask->second.nRecvPort;
+            strExitTaskRecvIp = itorTask->second.strRecvIp;
+            poStream->getOutstreamNum(nInitialUser);
+        }
+        mtVtduPreviewTask.unlock();
+
+
+        //查找可使用端口
+        int nSendV3Port = -1;
+
+        mtSendV3Port.lock();
+        if (g_vecSendV3Port.size() == 0)
+        {
+            nStatus = 400;
+            printf("g_vecSendV3Port is NULL\n");
+            mtSendV3Port.unlock();
+            return;
+        }
+        std::vector<int>::iterator itorSendV3 = g_vecSendV3Port.begin();
+        nSendV3Port = *itorSendV3;
+        g_vecSendV3Port.erase(itorSendV3);
+        mtSendV3Port.unlock();
+
+        stCurMediaInfo.nVtduSendPort = nSendV3Port;
+
+        //添加任务
+        if (bExitTask)
+        {
+            int nRet = poStream->addOneSend(stCurMediaInfo.strCuIp, stCurMediaInfo.nCuport, stCurMediaInfo.strCuUserID, stCurMediaInfo.nVtduSendPort);
+            if (0 > nRet)
+            {
+                nStatus = 400;
+                mtSendV3Port.lock();
+                g_vecSendV3Port.push_back(nSendV3Port);
+                mtSendV3Port.unlock();
+                return;
+            }
+            g_nOutstreamNum++;
+
+            stCurMediaInfo.nVtduRecvPort = nExitTaskRecvPort;
+            stCurMediaInfo.strVtduRecvIp = strExitTaskRecvIp;
+            return;
+        }
+        else//创建任务
+        {
+            //查找可使用端口
+            int nRecvPort = -1;
+            mtRecvPort.lock();
+            if (g_vecRecvPort.size() == 0)
+            {
+                nStatus = 400;
+                printf("g_vecRecvHiPort is NULL\n");
+                mtRecvPort.unlock();
+                mtSendV3Port.lock();
+                g_vecSendV3Port.push_back(nSendV3Port);
+                mtSendV3Port.unlock();
+                return;
+            }
+            std::vector<int>::iterator itorRecvHi = g_vecRecvPort.begin();
+            nRecvPort = *itorRecvHi;
+            g_vecRecvPort.erase(itorRecvHi);
+            mtRecvPort.unlock();
+
+
+            stCurMediaInfo.nVtduRecvPort = nRecvPort;
+
+            GBRtpPsOverUdpStream* pStreamHanlde = new(std::nothrow) GBRtpPsOverUdpStream(strPuInfo, nRecvPort, m_configSipServer.m_strSipAddr);
+            if (NULL == pStreamHanlde)
+            {
+                nStatus = 400;
+                strError = "New GBRtpPsOverUdpStream object failed!";
+                iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                mtSendV3Port.lock();
+                g_vecSendV3Port.push_back(nSendV3Port);
+                mtSendV3Port.unlock();
+
+                mtRecvPort.lock();
+                g_vecRecvPort.push_back(nRecvPort);
+                mtRecvPort.unlock();
+                return;
+            }
+            pStreamHanlde->setCallBack(StreamInfoCallBack, this);
+            int nRet = pStreamHanlde->start(bTrans);
+            if (nRet < 0)
+            {
+                nStatus = 400;
+                strError = "GBRtpPsOverUdpStream start failed!";
+                delete pStreamHanlde;
+                iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                mtSendV3Port.lock();
+                g_vecSendV3Port.push_back(nSendV3Port);
+                mtSendV3Port.unlock();
+
+                mtRecvPort.lock();
+                g_vecRecvPort.push_back(nRecvPort);
+                mtRecvPort.unlock();
+                return;
+            }
+
+            nRet = pStreamHanlde->addOneSend(stCurMediaInfo.strCuIp.c_str(), stCurMediaInfo.nCuport, stCurMediaInfo.strCuUserID, nSendV3Port);
+            if (nRet < 0)
+            {
+                pStreamHanlde->stop();
+                nStatus = 400;
+                strError = "GBRtpPsOverUdpStream start failed!";
+                delete pStreamHanlde;
+                iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                mtSendV3Port.lock();
+                g_vecSendV3Port.push_back(nSendV3Port);
+                mtSendV3Port.unlock();
+
+                mtRecvPort.lock();
+                g_vecRecvPort.push_back(nRecvPort);
+                mtRecvPort.unlock();
+                return;
+            }
+
+            std::string strHiId = "";
+            std::string strHiRegion = "";
+            std::string strHiIp = "";
+            int nHiPort = -1;
+            int nHiRecvPort = -1;
+            std::string strHisipId = "";
+            //如果 需要转码 从已注册hi 按负载情况获取 hi ip和端口
+            if (bTrans)
+            {
+                int nCurHiTaskNum = 10000;
+                mtRegHi.lock();
+                if (0 == g_mapRegHiInfo.size())
+                {
+                    pStreamHanlde->stop();
+                    delete pStreamHanlde;
+                    nStatus = 400;
+                    printf("g_mapRegHiInfo is NULL\n");
+                    strError = "have no trans module reg";
+                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                    mtRegHi.unlock();
+                    mtSendV3Port.lock();
+                    g_vecSendV3Port.push_back(nSendV3Port);
+                    mtSendV3Port.unlock();
+
+                    mtRecvPort.lock();
+                    g_vecRecvPort.push_back(nRecvPort);
+                    mtRecvPort.unlock();
+                    return;
+                }
+                std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.begin();
+                for (; itorRegHi != g_mapRegHiInfo.end(); ++itorRegHi)
+                {
+                    if (itorRegHi->second.nTansTaskNum == 0)
+                    {
+                        nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
+                        strHiIp = itorRegHi->second.strSipIp;
+                        nHiPort = itorRegHi->second.nSipPort;
+                        strHiId = itorRegHi->second.strSipId;
+                        strHiRegion = itorRegHi->second.strSipRegion;
+                        strHisipId = itorRegHi->first;
+                        break;
+                    }
+                    if (itorRegHi->second.nTansTaskNum < nCurHiTaskNum && itorRegHi->second.nTansTaskNum < itorRegHi->second.nMaxTransTaskNum)
+                    {
+                        nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
+                        strHiIp = itorRegHi->second.strSipIp;
+                        nHiPort = itorRegHi->second.nSipPort;
+                        strHiId = itorRegHi->second.strSipId;
+                        strHiRegion = itorRegHi->second.strSipRegion;
+                        strHisipId = itorRegHi->first;
+                    }
+                }
+                if (strHisipId == "")
+                {
+                    pStreamHanlde->stop();
+                    nStatus = 400;
+                    printf("get Hi failed\n");
+                    strError = "get Hi failed!";
+                    delete pStreamHanlde;
+                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                    mtSendV3Port.lock();
+                    g_vecSendV3Port.push_back(nSendV3Port);
+                    mtSendV3Port.unlock();
+
+                    mtRecvPort.lock();
+                    g_vecRecvPort.push_back(nRecvPort);
+                    mtRecvPort.unlock();
+                    return;
+                }
+                mtRegHi.unlock();
+                //sip协议通知对应hi模块 告知接收端口获取hi模块接收端口， 等待 10秒后如果没有回应 重新选择一个 直接失败 换一个hi重新请求一次)
+                int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, strHiIp, nHiPort);
+                if (ret <= 0)
+                {
+                    pStreamHanlde->stop();
+                    nStatus = 400;
+                    strError = "send task to hi failed!";
+                    delete pStreamHanlde;
+                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                    mtSendV3Port.lock();
+                    g_vecSendV3Port.push_back(nSendV3Port);
+                    mtSendV3Port.unlock();
+
+                    mtRecvPort.lock();
+                    g_vecRecvPort.push_back(nRecvPort);
+                    mtRecvPort.unlock();
+                    return;
+                }
+                //hi接收端口
+                for (int nWait = 0; nWait < 6; nWait++)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                    mtGetHirecvPort.lock();
+                    std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
+                    if (itorRecvHi != g_mapGetHirecvPort.end())
+                    {
+                        nHiRecvPort = itorRecvHi->second;
+                        g_mapGetHirecvPort.erase(itorRecvHi);
+                        mtGetHirecvPort.unlock();
+                        break;
+                    }
+                    mtGetHirecvPort.unlock();
+                }
+                if (nHiRecvPort == -1)
+                {
+                    pStreamHanlde->stop();
+                    nStatus = 400;
+                    printf("send task to hi failed, hi info[%s:%d]", strHiIp.c_str(), nHiPort);
+                    strError = "get hi recv port failed";
+                    delete pStreamHanlde;
+                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                    //通知取消任务
+                    m_oCommunicationHi.sendStopTransReq(strPuInfo, strHiIp, nHiPort);
+                    mtSendV3Port.lock();
+                    g_vecSendV3Port.push_back(nSendV3Port);
+                    mtSendV3Port.unlock();
+
+                    mtRecvPort.lock();
+                    g_vecRecvPort.push_back(nRecvPort);
+                    mtRecvPort.unlock();
+                    return;
+                }
+
+                mtRegHi.lock();
+                g_mapRegHiInfo[strHisipId].nTansTaskNum = nCurHiTaskNum + 1;
+                mtRegHi.unlock();
+                stCurMediaInfo.strVtduRecvIp = strHiIp;
+                stCurMediaInfo.nVtduRecvPort = nHiRecvPort;
+            }
+
+            stHiTaskInfo stTask;
+            stTask.strHiSipId = strHiId;
+            stTask.pStream = (void*)pStreamHanlde;
+            stTask.enStreamType = Stream_type::UDP_PS;
+            stTask.nRecvPort = stCurMediaInfo.nVtduRecvPort;
+            stTask.strRecvIp = stCurMediaInfo.strVtduRecvIp;
+            stTask.stMedia = stCurMediaInfo;
+            stTask.enTaskType = TASK_type::PREVIEW;
+            mtVtduPreviewTask.lock();
+            g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
+            mtVtduPreviewTask.unlock();
+
+            g_nInstreamNum++;
+            g_nOutstreamNum++;
+        }
     }
 }

@@ -365,10 +365,7 @@ int GBRtpPsOverUdpStream::inputFrameData(unsigned char* pFrameData, int iFrameLe
     //printf("NAL_type:%d\n", Type);
     int iPsLen = h264PsMux(pFrameData, iFrameLen, Type, (unsigned long long)m_ulTimeStamp, m_pPsBuff);
     if (iPsLen > 0)
-    {
-        //fwrite(m_pPsBuff, 1, iPsLen, fpt);
-
-        ////每次发送1400字节数据
+    {        //fwrite(m_pPsBuff, 1, iPsLen, fpt);        ////每次发送1400字节数据
         int iFrameSizePerCap = 1400;
         int iTotalSent = 0;
 
@@ -572,10 +569,6 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                 ret = recvfrom(m_fdRtpRecv, szRecvBuff, iRecvBuffLen, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
                 if (ret > 0)
                 {
-                    //test
-                    //static FILE* file = fopen("d:\\recvV3.264", "wb+");
-                    //fwrite(szRecvBuff,1, ret,file);
-                    //test end
                     bRecvPacket = true;
                     i64LastRecvTime = Comm_GetSecFrom1970();
                     unsigned char* pRtpData = (unsigned char*)szRecvBuff;
@@ -607,36 +600,76 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                         }
                     }
                     mtSendList.unlock();
-                    long long i64CurTime = Comm_GetMilliSecFrom1970();
-                    long long i64TimeGap = i64CurTime - i64LastTime;
-                    if (i64TimeGap >= 5000) //5秒回复一次RTCP receiver report消息
+                }
+            }
+        }
+
+        //接收rtcp包并回复
+        fd_set readRtcpFdSet;
+        FD_ZERO(&readRtcpFdSet);
+        FD_SET(m_fdRtcpRecv, &readRtcpFdSet);
+        ret = select(m_fdRtcpRecv + 1, &readRtcpFdSet, NULL, NULL, &tv);
+        if (ret < 0)
+        {
+            printf("m_fdRtcpRecv select failed,port:%d\n", m_nRecvPort + 1);
+            continue;
+        }
+        else if (0 == ret)
+        {
+            continue;
+        }
+        else
+        {
+            if (FD_ISSET(m_fdRtcpRecv, &readRtcpFdSet))
+            {
+                struct sockaddr_in addrFrom;
+                int iAddrLen = sizeof(addrFrom);
+                ret = recvfrom(m_fdRtcpRecv, szRecvBuff, iRecvBuffLen, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
+                if (ret > 0)
+                {
+                    if (iRecvBuffLen >= 8)
                     {
-                        i64LastTime = i64CurTime;
-
-                        unsigned char btRtcpData[1024] = { 0 };
-                        unsigned short seq = 0;
-                        unsigned long ulTimeStamp = 0;
-                        unsigned long ssrc = 0;
-
-                        memcpy(&seq, pRtpData + 2, 2);
-                        memcpy(&ulTimeStamp, pRtpData + 4, 4);
-                        memcpy(&ssrc, pRtpData + 8, 4);
-
-                        int iRtcpDataLen = makeRtcpPacketBuff(ulSenderId, ssrc, ulTimeStamp, seq, btRtcpData);
-                        if (iRtcpDataLen > 0)
-                        {
-                            //rtcp地址为发送RTP端口自动+1
-                            unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
-                            struct sockaddr_in addrToRtcp;
-                            memcpy(&addrToRtcp, &addrFrom, iAddrLen);
-                            addrToRtcp.sin_port = htons(usRtpFromPort + 1);
-                            sendto(m_fdRtcpRecv, (char*)btRtcpData, iRtcpDataLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
-                        }
+                        szRecvBuff[1] = 0xC9;
+                        szRecvBuff[2] = 0x00;
+                        szRecvBuff[3] = 0x01;
+                        unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
+                        struct sockaddr_in addrToRtcp;
+                        memcpy(&addrToRtcp, &addrFrom, iAddrLen);
+                        addrToRtcp.sin_port = htons(usRtpFromPort + 1);
+                        sendto(m_fdRtcpRecv, (char*)szRecvBuff, iRecvBuffLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
                     }
+
+                    //long long i64CurTime = Comm_GetMilliSecFrom1970();
+                    //long long i64TimeGap = i64CurTime - i64LastTime;
+                    //if (i64TimeGap >= 5000) //5秒回复一次RTCP receiver report消息
+                    //{
+                    //    i64LastTime = i64CurTime;
+
+                    //    unsigned char btRtcpData[1024] = { 0 };
+                    //    unsigned short seq = 0;
+                    //    unsigned long ulTimeStamp = 0;
+                    //    unsigned long ssrc = 0;
+
+                    //    memcpy(&seq, pRtpData + 2, 2);
+                    //    memcpy(&ulTimeStamp, pRtpData + 4, 4);
+                    //    memcpy(&ssrc, pRtpData + 8, 4);
+
+                    //    int iRtcpDataLen = makeRtcpPacketBuff(ulSenderId, ssrc, ulTimeStamp, seq, btRtcpData);
+                    //    if (iRtcpDataLen > 0)
+                    //    {
+                    //        //rtcp地址为发送RTP端口自动+1
+                    //        unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
+                    //        struct sockaddr_in addrToRtcp;
+                    //        memcpy(&addrToRtcp, &addrFrom, iAddrLen);
+                    //        addrToRtcp.sin_port = htons(usRtpFromPort + 1);
+                    //        sendto(m_fdRtcpRecv, (char*)btRtcpData, iRtcpDataLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
+                    //    }
+                    //}
                 }
             }
         }
     }
+
     printf("end GBRtpPsOverUdpStream::V3StreamWorking\n");
     return ;
 }
@@ -733,12 +766,8 @@ void GBRtpPsOverUdpStream::HiStreamWorking()
                         firstPacket.length = secondPacket.length - firstPacket.length;
                         nBeginParseIndex += firstPacket.length;
 
-                        //test
-                        //static FILE* fileRecvHi = fopen("d:\\recvHi.264", "wb+");
-                        //fwrite(firstPacket.data, 1, firstPacket.length, fileRecvHi);
                         inputFrameData(firstPacket.data, firstPacket.length, 0);
                     }
-                    //inputFrameData((unsigned char*)szRecvBuff, ret, 0);
                 }
             }
         }

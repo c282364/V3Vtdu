@@ -18,8 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef WIN32
-#include <Windows.h>
 #include <process.h>
+#else
+#include <pthread.h>
 #endif
 #include "tinyxml.h"
 #include <string>
@@ -27,7 +28,7 @@
 #include <mutex>
 #include <map>
 #include <thread>
-#include "GBRtpPsOverUdpStream.h"
+#include "GBRtpPsStream.h"
 #include "SipV3.h"
 #include "communicationHi.h"
 #include "XmlParse.h"
@@ -226,6 +227,16 @@ public:
     * remark        : NA
     **************************************************************************/
     void threadStreamCBMsgLoop();
+
+    /**************************************************************************
+    * name          : sipServerHandleV3TransReadyTest
+    * description   : 处理v3预览请求 测试函数
+    * input         : pMsgPtr   v3消息
+    * output        : NA
+    * return        : NA
+    * remark        : NA
+    **************************************************************************/
+    void sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo);
 
  private:
     /**************************************************************************
