@@ -26,7 +26,6 @@ int communicationHi::Init(const ConfigSipServer &configSipServer)
     m_fd2Vtdu = createFdUdp(configSipServer.m_iVtdu2HiPort, true, configSipServer.m_strSipAddr);
     if (m_fd2Vtdu <= 0)
     {
-        printf("createFdUdp m_fd2Vtdu failed,port:%d\n", configSipServer.m_iVtdu2HiPort);
         return -1;
     }
 
@@ -61,7 +60,7 @@ int communicationHi::StartEventLoop(fHiEventCB fnCB, void *pParam)
     m_CBFunc = fnCB;
     m_pEventCBParam = pParam;
 
-    //处理hi模块消息线程 //tbd放到communicationHi模块
+    //处理hi模块消息线程
     static std::thread ThHiMsgLoop(&communicationHi::threadHiMsgLoop, this);
     return 0;
 }
@@ -105,8 +104,6 @@ void communicationHi::threadHiMsgLoop()
                 ret = recvfrom(m_fd2Vtdu, szRecvBuff, iRecvBuffLen, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
                 if (ret > 0 && m_CBFunc != NULL)
                 {
-                    printf("recv:%s\n", szRecvBuff);
-
                     szRecvBuff[ret] = 0;
                     int iSendBuffLen = 0;
                     char szSendBuffBuff[4096] = { 0 };
@@ -153,8 +150,7 @@ int communicationHi::sendTransReq(int nRecvPort, const std::string &strPuInfo, c
     int nRet = sendto(m_fd2Vtdu, szKeepaliveXml, iXmlLen, 0, (sockaddr*)&sockaddrVtdu, sizeof(sockaddr));
     if (nRet <= 0)
     {
-        printf("send task to hi failed, hi info[%s:%d], body: %s", strHiIp.c_str(),
-            nHiPort, szKeepaliveXml);
+        VTDU_LOG_E("sendTransReq send task to hi failed, hi info: " << strHiIp << ":" << nHiPort << ", body: " << szKeepaliveXml);
     }
 
     return nRet;

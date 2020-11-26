@@ -22,6 +22,9 @@
 #include "rtptcpaddress.h"
 #include "rtptcptransmitter.h"
 #include "rtppacket.h"
+#include "IFDataType.h"
+#include "IFContainer.h"
+#include "log.h"
 #include <time.h>
 #include <string.h>
 #ifdef WIN32

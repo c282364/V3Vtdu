@@ -19,7 +19,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
     pCfgFile = new(std::nothrow) IniFile();
     if (NULL == pCfgFile)
     {
-        printf("open ini file failed0\n");
+        VTDU_LOG_E("new IniFile failed");
         return nRet;
     }
 
@@ -27,7 +27,9 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
     int nRetOpen = pCfgFile->openini(strCfgFile, IFACE_INI_PARAM_TYPE_NAME);
     if (nRetOpen != 0)
     {
-        printf("open ini file failed1\n");
+        VTDU_LOG_E("open ini file failed: " << strCfgFile);
+        delete pCfgFile;
+        pCfgFile = NULL;
         return nRet;
     }
 
@@ -42,7 +44,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no sipid\n");
+            VTDU_LOG_E("ini file have no local sipid");
             break;
         }
 
@@ -53,7 +55,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no region\n");
+            VTDU_LOG_E("ini file have no local region");
             break;
         }
 
@@ -64,7 +66,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no domain\n");
+            VTDU_LOG_E("ini file have no local domain");
             break;
         }
 
@@ -75,7 +77,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no sipaddr\n");
+            VTDU_LOG_E("ini file have no local sipaddr");
             break;
         }
 
@@ -86,7 +88,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no sipport\n");
+            VTDU_LOG_E("ini file have no local sipport");
             break;
         }
 
@@ -105,7 +107,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no remote sipid\n");
+            VTDU_LOG_E("ini file have no remote sipid");
             break;
         }
 
@@ -116,7 +118,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no remote region\n");
+            VTDU_LOG_E("ini file have no remote region");
             break;
         }
 
@@ -127,7 +129,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no remote domain\n");
+            VTDU_LOG_E("ini file have no remote domain");
             break;
         }
 
@@ -138,7 +140,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no remote sipaddr\n");
+            VTDU_LOG_E("ini file have no remote sipaddr");
             break;
         }
 
@@ -149,7 +151,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no remote sipport\n");
+            VTDU_LOG_E("ini file have no remote sipport");
             break;
         }
 
@@ -160,7 +162,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no region Vtdu2HiPort\n");
+            VTDU_LOG_E("ini file have no Vtdu2HiPort");
             break;
         }
 
@@ -171,7 +173,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no region RecvV3PortBegin\n");
+            VTDU_LOG_E("ini file have no RecvV3PortBegin");
             break;
         }
 
@@ -181,7 +183,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no RecvV3PortEnd\n");
+            VTDU_LOG_E("ini file have no RecvV3PortEnd");
             break;
         }
 
@@ -192,7 +194,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no region SendV3PortBegin\n");
+            VTDU_LOG_E("ini file have no SendV3PortBegin");
             break;
         }
 
@@ -202,7 +204,7 @@ int ConfigFileParse::getCfg(const std::string &strCfgFile, ConfigSipServer& stCo
         }
         else
         {
-            printf("ini file have no SendV3PortEnd\n");
+            VTDU_LOG_E("ini file have no SendV3PortEnd");
             break;
         }
 

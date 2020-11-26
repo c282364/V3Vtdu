@@ -28,6 +28,9 @@
     <Filter Include="config">
       <UniqueIdentifier>{d78e3f99-92c7-430e-8659-75757d5b1515}</UniqueIdentifier>
     </Filter>
+    <Filter Include="log">
+      <UniqueIdentifier>{80afe76f-a07d-4d62-8a29-fb91f6ff2d6c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -81,6 +84,12 @@
     <ClCompile Include="GBRtpPsStream.cpp">
       <Filter>stream</Filter>
     </ClCompile>
+    <ClCompile Include="log.cpp">
+      <Filter>log</Filter>
+    </ClCompile>
+    <ClCompile Include="LogManager.cpp">
+      <Filter>log</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -127,6 +136,18 @@
     </ClInclude>
     <ClInclude Include="GBRtpPsStream.h">
       <Filter>stream</Filter>
+    </ClInclude>
+    <ClInclude Include="log.h">
+      <Filter>log</Filter>
+    </ClInclude>
+    <ClInclude Include="LogManager.h">
+      <Filter>log</Filter>
+    </ClInclude>
+    <ClInclude Include="IFContainer.h">
+      <Filter>log</Filter>
+    </ClInclude>
+    <ClInclude Include="IFDataType.h">
+      <Filter>log</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

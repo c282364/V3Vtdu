@@ -22,6 +22,8 @@
 #include "XmlParse.h"
 #include "VtduServer.h"
 
+using namespace std;
+
 #define ENABLE_MAIN_SOCKET
 
 
@@ -31,7 +33,6 @@ int _tmain(int argc, _TCHAR* argv[])
     WSADATA wsd;
     WSAStartup(MAKEWORD(2, 2), &wsd);
 #endif // WIN32
-
     VtduServer oVtduServer;
     int nRet = oVtduServer.Init("VtduServer.ini");
     if (nRet < 0)

@@ -59,7 +59,7 @@ unsigned int __stdcall threadRecvV3(void *pParam)
 {
     if (NULL == pParam)
     {
-        printf("threadRecvV3, para is NULL!\n");
+        VTDU_LOG_E("threadRecvV3, para is NULL!");
         return -1;
     }
     GBRtpPsOverUdpStream* pHandle = (GBRtpPsOverUdpStream *)pParam;
@@ -74,7 +74,7 @@ unsigned int __stdcall threadRecvHi(void *pParam)
 {
     if (NULL == pParam)
     {
-        printf("threadRecvHi, para is NULL!\n");
+        VTDU_LOG_E("threadRecvHi, para is NULL");
         return -1;
     }
     GBRtpPsOverUdpStream* pHandle = (GBRtpPsOverUdpStream *)pParam;
@@ -370,7 +370,7 @@ int GBRtpPsOverUdpStream::inputFrameData(unsigned char* pFrameData, int iFrameLe
     {
         m_ulTimeStamp += 3600;
     }
-    //printf("NAL_type:%d\n", Type);
+
     int iPsLen = h264PsMux(pFrameData, iFrameLen, Type, (unsigned long long)m_ulTimeStamp, m_pPsBuff);
     if (iPsLen > 0)
     {        //fwrite(m_pPsBuff, 1, iPsLen, fpt);        ////每次发送1400字节数据
@@ -425,7 +425,7 @@ int GBRtpPsOverUdpStream::sendOneBlock(unsigned char *pBlockData, int iBlockLen,
     const int iMaxSendBufSize = 2048;
     if (iBlockLen > iMaxSendBufSize)
     {
-        printf("block size[%d] > max size[%d]\r\n", iBlockLen, iMaxSendBufSize);
+        VTDU_LOG_E("block size: " << iBlockLen << ", max size: " << iMaxSendBufSize);
         return -1;
     }
 
@@ -502,7 +502,7 @@ int GBRtpPsOverUdpStream::sendOneBlock(unsigned char *pBlockData, int iBlockLen,
         int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
         if (ret1 <= 0)
         {
-            printf("select RtpSend failed,port:%d\n", itor->second.nSendPort);
+            VTDU_LOG_E("select RtpSend failed, port: " << itor->second.nSendPort);
         }
         else
         {
@@ -510,7 +510,6 @@ int GBRtpPsOverUdpStream::sendOneBlock(unsigned char *pBlockData, int iBlockLen,
             {
                 //发送
                 sendret = sendto(itor->second.fdSend, (char*)pSendBuff, len, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
-                printf("send to v3:%d\n", sendret);
                 
             }
         }
@@ -530,7 +529,6 @@ int GBRtpPsOverUdpStream::sendOneBlock(unsigned char *pBlockData, int iBlockLen,
 **************************************************************************/
 void GBRtpPsOverUdpStream::V3StreamWorking()
 {
-    printf("begin GBRtpPsOverUdpStream::V3StreamWorking\n");
     const int iRecvBuffLen = 4096;
     char szRecvBuff[iRecvBuffLen] = { 0 };
     long long i64LastTime = Comm_GetMilliSecFrom1970();
@@ -549,8 +547,13 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
         int ret = select(m_fdRtpRecv + 1, &readFdSet, NULL, NULL, &tv);
         if (ret < 0)
         {
-            printf("m_fdRtpRecv select failed,port:%d\n", m_nRecvPort);
-            continue;
+            VTDU_LOG_E("m_fdRtpRecv select failed, port: " << m_nRecvPort);
+            //通知收流失败
+            if (NULL != m_pFuncCb)
+            {
+                m_pFuncCb(0, m_strPuInfo, m_pUserPara);
+            }
+            break;
         }
         else if (0 == ret)
         {
@@ -558,7 +561,7 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
             //收到第一个数据包以后，开始监控 连续15秒没有数据判断为断流。回收资源，上报vtdu.
             if (bRecvPacket && nCurTime - i64LastRecvTime >= 15)
             {
-                printf("video stream cut off,last time:%I64d, curtime:%I64d\n", i64LastRecvTime, nCurTime);
+                VTDU_LOG_E("video stream cut off,last time: " << i64LastRecvTime << ", curtime: " << nCurTime);
                 //通知收流失败
                 if (NULL != m_pFuncCb)
                 {
@@ -594,7 +597,7 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                         int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
                         if (ret1 <= 0)
                         {
-                            printf("select RtpSend failed,port:%d\n", itor->second.nSendPort);
+                            VTDU_LOG_E("select RtpSend failed,port: " << itor->second.nSendPort);
                         }
                         else
                         {
@@ -602,8 +605,6 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                             {
                                 //发送
                                 int sendret = sendto(itor->second.fdSend, (char*)szRecvBuff, ret, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
-                                printf("send to v3,len:%d\n", sendret);
-
                             }
                         }
                     }
@@ -619,7 +620,7 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
         ret = select(m_fdRtcpRecv + 1, &readRtcpFdSet, NULL, NULL, &tv);
         if (ret < 0)
         {
-            printf("m_fdRtcpRecv select failed,port:%d\n", m_nRecvPort + 1);
+            VTDU_LOG_E("m_fdRtcpRecv select failed,port: " << m_nRecvPort + 1);
             continue;
         }
         else if (0 == ret)
@@ -678,7 +679,6 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
         }
     }
 
-    printf("end GBRtpPsOverUdpStream::V3StreamWorking\n");
     return ;
 }
 
@@ -692,7 +692,6 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
 **************************************************************************/
 void GBRtpPsOverUdpStream::HiStreamWorking()
 {
-    printf("begin GBRtpPsOverUdpStream::HiStreamWorking\n");
     const int iRecvBuffLen = 4096;
     char szRecvBuff[iRecvBuffLen] = { 0 };
     long long i64LastTime = Comm_GetMilliSecFrom1970();
@@ -717,8 +716,13 @@ void GBRtpPsOverUdpStream::HiStreamWorking()
         int ret = select(m_fdRtpRecv + 1, &readFdSet, NULL, NULL, &tv);
         if (ret < 0)
         {
-            printf("m_fdRtpRecv select failed,port:%d\n", m_nRecvPort);
-            continue;
+            VTDU_LOG_E("m_fdRtpRecv select failed,port: " << m_nRecvPort);
+            //通知收流失败
+            if (NULL != m_pFuncCb)
+            {
+                m_pFuncCb(1, m_strPuInfo, m_pUserPara);
+            }
+            break;
         }
         else if (0 == ret)
         {
@@ -726,7 +730,7 @@ void GBRtpPsOverUdpStream::HiStreamWorking()
             //收到第一个数据包以后，开始监控 连续15秒没有数据判断为断流。回收资源，上报vtdu.
             if (bRecvPacket && nCurTime - i64LastRecvTime >= 15)
             {
-                printf("video stream cut off,last time:%I64d, curtime:%I64d\n", i64LastRecvTime, nCurTime);
+                VTDU_LOG_E("video stream cut off,last time: " << i64LastRecvTime << ", curtime: " << nCurTime);
                 //通知收流失败
                 if (NULL != m_pFuncCb)
                 {
@@ -782,7 +786,6 @@ void GBRtpPsOverUdpStream::HiStreamWorking()
     }
 
     return;
-    printf("end GBRtpPsOverUdpStream::HiStreamWorking\n");
 }
 
 //rtcp结构体转成字节数组,参数都要求输入网络字节序

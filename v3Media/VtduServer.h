@@ -122,8 +122,8 @@ public:
     void sipClientHandleOptionFailed();
 
     /**************************************************************************
-    * name          : sipClientHandleOptionFailed
-    * description   : option消息发送失败，option消息作为心跳发送失败判断为服务端掉线
+    * name          : HandleHiTransMessage
+    * description   : Hi转码上块上报消息处理
     * input         : pMsgPtr    收到的消息
     *                 nLen       收到的消息长度
     * output        : szSendBuff 回复消息

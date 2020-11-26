@@ -17,10 +17,9 @@
 //sip消息处理函数
 void GB28181EventCB(ESipUAMsg msg, void *pMsgPtr, void *pParam)
 {
-    printf("gb28181 media gate recv msg=%d", msg);
     if (NULL == pMsgPtr || NULL == pParam)
     {
-        printf("invaild para\n");
+        VTDU_LOG_E("GB28181EventCB, invaild para");
         return;
     }
     VtduServer* poServer = (VtduServer*)pParam;
@@ -60,7 +59,7 @@ void StreamInfoCallBack(int nType, std::string strCbInfo, void *pParam)
 {
     if (NULL == pParam)
     {
-        printf("invaild para\n");
+        VTDU_LOG_E("StreamInfoCallBack invaild para");
         return;
     }
     VtduServer* poServer = (VtduServer*)pParam;
@@ -96,7 +95,7 @@ int VtduServer::Init(const std::string &strCfgFile)
 {
     //获取配置信息
     ConfigFileParse oCfg;
-    int nRet = oCfg.getCfg(strCfgFile, m_configSipServer);//tbd
+    int nRet = oCfg.getCfg(strCfgFile, m_configSipServer);
     if (nRet < 0)
     {
         return -1;
@@ -228,9 +227,11 @@ void VtduServer::threadHiManager()
         std::map<std::string, stHiInfo>::iterator iotr = g_mapRegHiInfo.begin();
         for (; iotr != g_mapRegHiInfo.end(); )
         {
+            VTDU_LOG_I("CHECK HiTrans, id_ip: ", iotr->second.strSipId << "_" << iotr->second.strSipIp<< ", task num: " << iotr->second.nTansTaskNum);
             //15秒没有心跳 判断离线
             if (nCurTime - iotr->second.nHeartBeat > 15)
             {
+                VTDU_LOG_I("CHECK HiTrans, Hitans cut off: ", iotr->second.strSipId << "_" << iotr->second.strSipIp);
                 //停止接收 回收该模块所有端口
                 mtVtduPreviewTask.lock();
                 std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.begin();
@@ -390,6 +391,7 @@ void VtduServer::threadStreamCBMsgLoop()
 
         if (bGet)
         {
+            VTDU_LOG_I("threadStreamCBMsgLoop get cutoff, strHiTaskId: " << stCurCutOffInfo.strCutOffInfo);
             std::string strHiTaskId = stCurCutOffInfo.strCutOffInfo;
             //按照task id寻找任务信息，释放stream，回收端口
             Stream* pStream = NULL;
@@ -400,7 +402,7 @@ void VtduServer::threadStreamCBMsgLoop()
             std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strHiTaskId);
             if (itorTask != g_mapVtduPreviewTaskInfo.end())
             {
-                //tbd 父类是否可以这么用 需要测试
+                //父类是否可以这么用 需要测试
                 pStream = (Stream*)(itorTask->second.pStream);
                 stCurMediaInfo = itorTask->second.stMedia;
                 enTaskType = itorTask->second.enTaskType;
@@ -457,7 +459,7 @@ void VtduServer::threadStreamCBMsgLoop()
                 std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
                 if (itorRegHi == g_mapRegHiInfo.end())
                 {
-                    printf("sipServerHandleV3FileStop,cannot find hi info, HiSipId:%s\n", strHiSipId.c_str());
+                    VTDU_LOG_E("threadStreamCBMsgLoop cannot find hi info, HiSipId::" << strHiSipId);
                 }
                 else
                 {
@@ -489,11 +491,11 @@ void VtduServer::threadStreamCBMsgLoop()
 **************************************************************************/
 void VtduServer::sipClientHandleRegisterSuccess(void *pMsgPtr)
 {
+    VTDU_LOG_I("sipClientHandleRegisterSuccess");
     char szBody[4096] = { 0 };
     int ret = SipUA_GetResponseBodyContent(pMsgPtr, szBody, 4096);
     if (ret <= 0)
     {
-        printf("SipUA_GetResponseBodyContent get body failed.\n");
         return;
     }
     int nErrorCode = 0;
@@ -515,7 +517,7 @@ void VtduServer::sipClientHandleRegisterSuccess(void *pMsgPtr)
     {
         g_bStopHeartBeat = true;
         g_bStopReg = false;
-        printf("reg failed! error:%d\n", nErrorCode);
+        VTDU_LOG_E("sipClientHandleRegisterSuccess reg failed! error:" << nErrorCode);
     }
     return;
 }
@@ -534,6 +536,7 @@ void VtduServer::sipClientHandleRegisterFailed(void *pMsgPtr)
     eXosip_event_t *evt = (eXosip_event_t *)pMsgPtr;
     if (evt->response != NULL && evt->response->status_code == 401)
     {
+        VTDU_LOG_I("sipClientHandleRegisterFailed 401");
         g_nRegid = SipUA_RegisterV3(m_configSipServer, true, g_nRegid);
     }
     else
@@ -543,9 +546,8 @@ void VtduServer::sipClientHandleRegisterFailed(void *pMsgPtr)
         g_bStopReg = false;
         if (evt->response != NULL)
         {
-            printf("reg failed status:%d\n", evt->response->status_code);
+            VTDU_LOG_E("reg failed status: " << evt->response->status_code);
         }
-
     }
 }
 
@@ -559,18 +561,15 @@ void VtduServer::sipClientHandleRegisterFailed(void *pMsgPtr)
 **************************************************************************/
 void VtduServer::sipServerHandleInfo(void *pMsgPtr)
 {
-    printf("sipServerHandleInfo begin\n");
+    VTDU_LOG_I("recv Sip [INFO] Message");
 
     char szBody[4096] = { 0 };
     int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
     if (ret <= 0)
     {
-        printf("SipUA_GetRequestBodyContent get body failed.\n");
-        printf("sipServerHandleInfo end\n");
         return;
     }
 
-    printf("recv MESSAGE, body: %s\n", szBody);
     std::string strCmdType = m_oXmlParse.getMsgCmdTypeV3(szBody, ret);
     if ("MSG_READY_VIDEO_TRANS_REQ" == strCmdType)//启动预览
     {
@@ -578,7 +577,7 @@ void VtduServer::sipServerHandleInfo(void *pMsgPtr)
     }
     else if ("MSG_START_VIDEO_VTDU_ACK" == strCmdType)//确认预览
     {
-        printf("recv MSG_START_VIDEO_VTDU_ACK\n");
+        VTDU_LOG_I("recv MSG_START_VIDEO_VTDU_ACK");
         //sipServerHandleV3TransAck(pMsgPtr);
     }
     else if ("MSG_VTDU_STOP_VIDEO_REQ" == strCmdType)//停止预览
@@ -596,7 +595,7 @@ void VtduServer::sipServerHandleInfo(void *pMsgPtr)
     }
     else
     {
-        printf("unsupport Request:%s\n", strCmdType.c_str());
+        VTDU_LOG_E("sipServerHandleInfo unsupport Request: " << strCmdType);
         //回复状态
         SipUA_AnswerInfo(pMsgPtr, 400, NULL, 0);
     }
@@ -612,14 +611,15 @@ void VtduServer::sipServerHandleInfo(void *pMsgPtr)
 **************************************************************************/
 void VtduServer::sipClientHandleOptionFailed()
 {
+    VTDU_LOG_I("sipClientHandleOptionFailed");
     g_bStopHeartBeat = true;
     g_bStopReg = false;
     g_nRegid = -1;
 }
 
 /**************************************************************************
-* name          : sipClientHandleOptionFailed
-* description   : option消息发送失败，option消息作为心跳发送失败判断为服务端掉线
+* name          : HandleHiTransMessage
+* description   : Hi转码上块上报消息处理
 * input         : pMsgPtr    收到的消息
 *                 nLen       收到的消息长度
 * output        : szSendBuff 回复消息
@@ -631,13 +631,13 @@ void VtduServer::HandleHiTransMessage(char *pMsgPtr, int nLen, char* szSendBuff,
 {
     if (NULL == pMsgPtr)
     {
-        printf("HandleHiTransMessage, pMsgPtr is NULL\n");
+        VTDU_LOG_E("HandleHiTransMessage pMsgPtr is NUL");
         return;
     }
     std::string strCmdType = m_oXmlParse.getMsgCmdTypeV3(pMsgPtr, nLen);
-    printf("HandleHiTransMessage begin, msg type:%s\n", strCmdType.c_str());
     if ("MSG_HI_REG" == strCmdType)//注册
     {
+        VTDU_LOG_I("HandleHiTransMessage handle MSG_HI_REG,body: ", pMsgPtr);
         HandleHiRegister(pMsgPtr, szSendBuff, nSendBuf);
     }
     else if ("MSG_HI_HEART" == strCmdType)//心跳
@@ -650,11 +650,12 @@ void VtduServer::HandleHiTransMessage(char *pMsgPtr, int nLen, char* szSendBuff,
     }
     else if ("MSG_HI_CUTOUT" == strCmdType || "MSG_HI_SELECT_FAILED" == strCmdType) //断流
     {
+        VTDU_LOG_I("HandleHiTransMessage handle MSG_HI_CUTOUT,body: ", pMsgPtr);
         HandleHiCutout(pMsgPtr, szSendBuff, nSendBuf);
     }
     else
     {
-        printf("unsupport Request:%s\n", pMsgPtr);
+        VTDU_LOG_E("HandleHiTransMessage unsupport Request:" << pMsgPtr);
         return;
     }
 }
@@ -679,15 +680,17 @@ void VtduServer::HandleStreamInfoCallBack(int nType, std::string strCbInfo)
         mtCutOff.lock();
         g_vecCutOff.push_back(stCurCutOffInfo);
         mtCutOff.unlock();
+        VTDU_LOG_I("HandleStreamInfoCallBack v3 cut off, task: " << stCurCutOffInfo.strCutOffInfo);
         break;
     case 1: // hi模块断流
         stCurCutOffInfo.enCutOffType = CUTOFF_type::HiTrans;
         mtCutOff.lock();
         g_vecCutOff.push_back(stCurCutOffInfo);
         mtCutOff.unlock();
+        VTDU_LOG_I("HandleStreamInfoCallBack Hi cut off, task: " << stCurCutOffInfo.strCutOffInfo);
         break;
     default:
-        printf("StreamInfoCallBack unsuport type:%d\n", nType);
+        VTDU_LOG_E("StreamInfoCallBack unsuport type:" << nType);
         break;
     }
 }
@@ -712,10 +715,10 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
         int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
         if (ret <= 0)
         {
-            printf("SipUA_GetRequestBodyContent get body failed.\n");
             strError = "get msg body failed";
             break;
         }
+        VTDU_LOG_I("Handle V3 TransReady,body: ", szBody);
         nStatus = m_oXmlParse.ParseXmlTransReady(szBody, stCurMediaInfo, strError);
     } while (0);
 
@@ -733,18 +736,17 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
     }
     else
     {
-   //     if (stCurMediaInfo.nCuTransType != 0
-   //         || (stCurMediaInfo.nCuUserType == 1 && stCurMediaInfo.strCuGBVideoTransMode != "UDP")
-   //         || stCurMediaInfo.nPuTransType != 0)
-   //     {
-   //         strError = "unsupport Protocol";
-   //         iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-   //         //回复状态
-   //         SipUA_AnswerInfo(pMsgPtr, 400, pszBody, iBodyLen);
-   //         printf("unsupport Protocol.\n");
-			//
-			//return;
-   //     }
+        if (stCurMediaInfo.nCuTransType != 0
+            || (stCurMediaInfo.nCuUserType == 1 && stCurMediaInfo.strCuGBVideoTransMode != "UDP")
+            || stCurMediaInfo.nPuTransType != 0)
+        {
+            strError = "unsupport Protocol";
+            iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+            //回复状态
+            SipUA_AnswerInfo(pMsgPtr, 400, pszBody, iBodyLen);
+            VTDU_LOG_E("HandleHiTransMessage unsupport Protocol:" << stCurMediaInfo.nCuTransType << "_" << stCurMediaInfo.nCuUserType << "_" << stCurMediaInfo.strCuGBVideoTransMode << "_" << stCurMediaInfo.nPuTransType);	
+			return;
+        }
 
         //非国标的私有流不转码
         if (stCurMediaInfo.nPuProtocol != 1)
@@ -785,7 +787,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
         if (g_vecSendV3Port.size() == 0)
         {
             nStatus = 400;
-            printf("g_vecSendV3Port is NULL\n");
+            VTDU_LOG_E("g_vecSendV3Port is NULL");
             strError = "SendV3Port is use up";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
@@ -829,7 +831,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
             if (g_vecRecvPort.size() == 0)
             {
                 nStatus = 400;
-                printf("g_vecRecvHiPort is NULL\n");
+                VTDU_LOG_E("g_vecRecvHiPort is NULL");
                 strError = "RecvHiPort is use up";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
@@ -917,7 +919,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                     pStreamHanlde->stop();
                     delete pStreamHanlde;
                     nStatus = 400;
-                    printf("g_mapRegHiInfo is NULL\n");
+                    VTDU_LOG_E("g_mapRegHiInfo is NULL");
                     strError = "have no trans module reg";
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                     SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
@@ -958,7 +960,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                 {
                     pStreamHanlde->stop();
                     nStatus = 400;
-                    printf("get Hi failed\n");
+                    VTDU_LOG_E("get Hi failed");
                     strError = "get Hi failed!";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
@@ -1010,7 +1012,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                 {
                     pStreamHanlde->stop();
                     nStatus = 400;
-                    printf("send task to hi failed, hi info[%s:%d]", strHiIp.c_str(), nHiPort);
+                    VTDU_LOG_E("get hi recv port failed, hi info: " << strHiIp << ":" << nHiPort);
                     strError = "get hi recv port failed";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
@@ -1074,10 +1076,10 @@ void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
         int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
         if (ret <= 0)
         {
-            printf("SipUA_GetRequestBodyContent get body failed.\n");
             strError = "get msg body failed";
             break;
         }
+        VTDU_LOG_I("Handle V3 Trans STOP,body: ", szBody);
         nStatus = m_oXmlParse.ParseXmlTransStop(szBody, stCurMediaInfo, strError);
     } while (0);
 
@@ -1211,10 +1213,10 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
         if (ret <= 0)
         {
-            printf("SipUA_GetRequestBodyContent get body failed.\n");
             strError = "get msg body failed";
             break;
         }
+        VTDU_LOG_I("Handle V3 File Start,body: ", szBody);
         nStatus = m_oXmlParse.ParseXmlV3FileStart(szBody, stCurMediaInfo, strError);
     } while (0);
 
@@ -1248,7 +1250,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         if (g_vecSendV3Port.size() == 0)
         {
             nStatus = 400;
-            printf("g_vecSendV3Port is NULL\n");
+            VTDU_LOG_E("g_vecSendV3Port is NULL");
             strError = "SendV3Port is use up";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
@@ -1264,7 +1266,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         if (g_vecRecvPort.size() == 0)
         {
             nStatus = 400;
-            printf("g_vecRecvHiPort is NULL\n");
+            VTDU_LOG_E("g_vecRecvHiPort is NULL");
             strError = "RecvHiPort is use up";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
@@ -1353,7 +1355,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
             if (0 == g_mapRegHiInfo.size())
             {
                 nStatus = 400;
-                printf("g_mapRegHiInfo is NULL\n");
+                VTDU_LOG_E("have no trans module reg");
                 strError = "have no trans module reg";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
@@ -1394,7 +1396,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
             {
                 pStreamHanlde->stop();
                 nStatus = 400;
-                printf("get Hi failed\n");
+                VTDU_LOG_E("get Hi failed");
                 strError = "get Hi failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
@@ -1447,7 +1449,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
             {
                 pStreamHanlde->stop();
                 nStatus = 400;
-                printf("get hi recv port failed, Hi info[%s:%d]", strHiIp.c_str(), nHiPort);
+                VTDU_LOG_E("get hi recv port failed, Hi info: " << strHiIp << ":" << nHiPort);
                 strError = "get hi recv port failed";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
@@ -1509,10 +1511,10 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
         int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
         if (ret <= 0)
         {
-            printf("SipUA_GetRequestBodyContent get body failed.\n");
             strError = "get msg body failed";
             break;
         }
+        VTDU_LOG_I("Handle V3 File Stop,body: ", szBody);
         nStatus = m_oXmlParse.ParseXmlV3FileStop(szBody, stCurMediaInfo, strError);
     } while (0);
 
@@ -1584,7 +1586,7 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
                     std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
                     if (itorRegHi == g_mapRegHiInfo.end())
                     {
-                        printf("sipServerHandleV3FileStop,cannot find hi info, HiSipId:%s\n", strHiSipId.c_str());
+                        VTDU_LOG_E("sipServerHandleV3FileStop,cannot find hi info, HiSipId:: " << strHiSipId);
                     }
                     else
                     {
@@ -1628,8 +1630,6 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
 **************************************************************************/
 void VtduServer::HandleHiRegister(char *pMsgPtr, char* szSendBuff, int* nSendBufLen)
 {
-    printf("HandleHiRegister begin\n");
-
     *nSendBufLen = 0;
     std::string strError = "";
     if (pMsgPtr)
@@ -1666,7 +1666,7 @@ void VtduServer::HandleHiRegister(char *pMsgPtr, char* szSendBuff, int* nSendBuf
     }
     else
     {
-        printf("HandleHiRegister body is null.");
+        VTDU_LOG_E("HandleHiRegister body is null.");
         strError = "cannot find HandleHiRegister body";
         *nSendBufLen = sprintf(szSendBuff,
             "<VTDU_HEADER>\r\n"
@@ -1825,7 +1825,7 @@ void VtduServer::HandleHiCutout(char *pMsgPtr, char* szSendBuff, int* nSendBufLe
             delete pStream;
             pStream = NULL;
 
-            // 通知v3断流 //回放待确认 //tbd
+            // 通知v3断流 //回放待确认
             if (enTaskType == TASK_type::PREVIEW)
             {
                 SipUA_Timeout(stCurMediaInfo, m_configSipServer);
@@ -1894,7 +1894,7 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
         if (g_vecSendV3Port.size() == 0)
         {
             nStatus = 400;
-            printf("g_vecSendV3Port is NULL\n");
+            VTDU_LOG_E("g_vecSendV3Port is NULL");
             mtSendV3Port.unlock();
             return;
         }
@@ -1931,7 +1931,7 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
             if (g_vecRecvPort.size() == 0)
             {
                 nStatus = 400;
-                printf("g_vecRecvHiPort is NULL\n");
+                VTDU_LOG_E("g_vecRecvHiPort is NULL");
                 mtRecvPort.unlock();
                 mtSendV3Port.lock();
                 g_vecSendV3Port.push_back(nSendV3Port);
@@ -2013,7 +2013,7 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
                     pStreamHanlde->stop();
                     delete pStreamHanlde;
                     nStatus = 400;
-                    printf("g_mapRegHiInfo is NULL\n");
+                    VTDU_LOG_E("g_mapRegHiInfo is NULL");
                     strError = "have no trans module reg";
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                     mtRegHi.unlock();
@@ -2053,7 +2053,7 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
                 {
                     pStreamHanlde->stop();
                     nStatus = 400;
-                    printf("get Hi failed\n");
+                    VTDU_LOG_E("get Hi failed");
                     strError = "get Hi failed!";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
@@ -2104,7 +2104,7 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
                 {
                     pStreamHanlde->stop();
                     nStatus = 400;
-                    printf("send task to hi failed, hi info[%s:%d]", strHiIp.c_str(), nHiPort);
+                    VTDU_LOG_E("get hi recv port failed, hi info: " << strHiIp << ":" << nHiPort);
                     strError = "get hi recv port failed";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());

@@ -31,7 +31,7 @@ std::string XmlParse::getMsgCmdTypeV3(const char *pszBody, int iBodyLen)
     TiXmlElement *pXmlElementHeader = doc.FirstChildElement("IE_HEADER");
     if (NULL == pXmlElementHeader)
     {
-        printf("getMsgCmdTypeV3 cannot find IE_HEADER\r\n%s\n", pszBody);
+        VTDU_LOG_E("getMsgCmdTypeV3 cannot find IE_HEADER: " << pszBody);
         doc.Clear();
         return strCmd;
     }
@@ -39,7 +39,7 @@ std::string XmlParse::getMsgCmdTypeV3(const char *pszBody, int iBodyLen)
     TiXmlElement *pXmlElementMessageType = pXmlElementHeader->FirstChildElement("MessageType");
     if (NULL == pXmlElementMessageType)
     {
-        printf("getMsgCmdTypeV3 cannot find pXmlElementMessageType\r\n%s\n", pszBody);
+        VTDU_LOG_E("getMsgCmdTypeV3 cannot find pXmlElementMessageType: " << pszBody);
         doc.Clear();
         return strCmd;
     }
@@ -68,7 +68,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuInfo = doc.FirstChildElement("IE_CU_ADDRINFO");
     if (NULL == pXmlElementCuInfo)
     {
-        printf("cannot find IE_CU_ADDRINFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find IE_CU_ADDRINFO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_CU_ADDRINFO";
         return 400;
@@ -77,7 +77,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuUserID = pXmlElementCuInfo->FirstChildElement("UserID");
     if (NULL == pXmlElementCuUserID)
     {
-        printf("cannot find UserID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find UserID: " << szBody);
         doc.Clear();
         strError = "cannot find CU UserID";
         return 400;
@@ -87,7 +87,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuIP = pXmlElementCuInfo->FirstChildElement("IP");
     if (NULL == pXmlElementCuIP)
     {
-        printf("cannot find CU IP\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find CU IP: " << szBody);
         doc.Clear();
         strError = "cannot find CU IP";
         return 400;
@@ -97,7 +97,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuPort = pXmlElementCuInfo->FirstChildElement("Port");
     if (NULL == pXmlElementCuPort)
     {
-        printf("cannot find CU Port\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find CU Port: " << szBody);
         doc.Clear();
         strError = "cannot find CU Port";
         return 400;
@@ -108,7 +108,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuNat = pXmlElementCuInfo->FirstChildElement("Nat");
     if (NULL == pXmlElementCuNat)
     {
-        printf("cannot find CU NAT\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find CU NAT: " << szBody);
         doc.Clear();
         strError = "cannot find CU NAT";
         return 400;
@@ -119,7 +119,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuTransType = pXmlElementCuInfo->FirstChildElement("TransType");
     if (NULL == pXmlElementCuTransType)
     {
-        printf("cannot find CU TransType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find CU TransType: " << szBody);
         doc.Clear();
         strError = "cannot find CU TransType";
         return 400;
@@ -131,7 +131,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuUserType = pXmlElementCuInfo->FirstChildElement("UserType");
     if (NULL == pXmlElementCuUserType)
     {
-        printf("cannot find CU UserType\n");
+        VTDU_LOG_I("ParseXmlTransReady cannot find CU UserType: " << szBody);
         stCurMediaInfo.nCuUserType = 1;
     }
     else
@@ -143,7 +143,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuGBVideoTransMode = pXmlElementCuInfo->FirstChildElement("GBVideoTransMode");
     if (NULL == pXmlElementCuGBVideoTransMode)
     {
-        printf("cannot find CU GBVideoTransMode\n");
+        VTDU_LOG_I("ParseXmlTransReady cannot find CU GBVideoTransMode: " << szBody);
         stCurMediaInfo.strCuGBVideoTransMode = "UDP";
     }
     else
@@ -154,7 +154,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementCuMSCheck = pXmlElementCuInfo->FirstChildElement("MSCheck");
     if (NULL == pXmlElementCuMSCheck)
     {
-        printf("cannot find CU MSCheck\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find CU MSCheck: " << szBody);
         doc.Clear();
         strError = "cannot find CU MSCheck";
         return 400;
@@ -167,7 +167,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuInfo = doc.FirstChildElement("IE_PU_ADDRINFO");
     if (NULL == pXmlElementPuInfo)
     {
-        printf("cannot find IE_PU_ADDRINFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find IE_PU_ADDRINFO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_PU_ADDRINFO";
         return 400;
@@ -176,7 +176,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuPUID = pXmlElementPuInfo->FirstChildElement("PUID");
     if (NULL == pXmlElementPuPUID)
     {
-        printf("cannot find PUID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find PUID: " << szBody);
         doc.Clear();
         strError = "cannot find PUID";
         return 400;
@@ -186,7 +186,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuChannelID = pXmlElementPuInfo->FirstChildElement("ChannelID");
     if (NULL == pXmlElementPuChannelID)
     {
-        printf("cannot find PU ChannelID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find ChannelID: " << szBody);
         doc.Clear();
         strError = "cannot find PU ChannelID";
         return 400;
@@ -197,7 +197,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuProtocol = pXmlElementPuInfo->FirstChildElement("Protocol");
     if (NULL == pXmlElementPuProtocol)
     {
-        printf("cannot find PU Protocol\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find PU Protocol: " << szBody);
         doc.Clear();
         strError = "cannot find PU Protocol";
         return 400;
@@ -208,7 +208,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuStreamType = pXmlElementPuInfo->FirstChildElement("StreamType");
     if (NULL == pXmlElementPuStreamType)
     {
-        printf("cannot find PU StreamType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find PU StreamType: " << szBody);
         doc.Clear();
         strError = "cannot find PU StreamType";
         return 400;
@@ -219,7 +219,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuTransType = pXmlElementPuInfo->FirstChildElement("TransType");
     if (NULL == pXmlElementPuTransType)
     {
-        printf("cannot find PU TransType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find PU TransType: " << szBody);
         doc.Clear();
         strError = "cannot find PU TransType";
         return 400;
@@ -230,7 +230,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementPuFCode = pXmlElementPuInfo->FirstChildElement("FCode");
     if (NULL == pXmlElementPuFCode)
     {
-        printf("cannot find FCode\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find FCode: " << szBody);
         doc.Clear();
         strError = "cannot find PU FCode";
         return 400;
@@ -242,7 +242,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementVtduRoute = doc.FirstChildElement("IE_VTDU_ROUTE");
     if (NULL == pXmlElementVtduRoute)
     {
-        printf("cannot find IE_VTDU_ROUTE\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find IE_VTDU_ROUTE: " << szBody);
         doc.Clear();
         strError = "cannot find IE_VTDU_ROUTE";
         return 400;
@@ -251,7 +251,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementVtduRecvIP = pXmlElementVtduRoute->FirstChildElement("RecvIP");
     if (NULL == pXmlElementVtduRecvIP)
     {
-        printf("cannot find RecvIP\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find RecvIP: " << szBody);
         doc.Clear();
         strError = "cannot find RecvIP";
         return 400;
@@ -261,7 +261,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementVtduSendIP = pXmlElementVtduRoute->FirstChildElement("SendIP");
     if (NULL == pXmlElementVtduSendIP)
     {
-        printf("cannot find SendIP\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find SendIP: " << szBody);
         doc.Clear();
         strError = "cannot find SendIP";
         return 400;
@@ -272,7 +272,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementOpenVideo = doc.FirstChildElement("IE_OPEN_VIDEO");
     if (NULL == pXmlElementOpenVideo)
     {
-        printf("cannot find IE_OPEN_VIDEO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find IE_OPEN_VIDEO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_OPEN_VIDEO";
         return 400;
@@ -281,7 +281,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementOpenVideoStreamType = pXmlElementOpenVideo->FirstChildElement("StreamType");
     if (NULL == pXmlElementOpenVideoStreamType)
     {
-        printf("cannot find OpenVideoStreamType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransReady cannot find OpenVideoStreamType: " << szBody);
         doc.Clear();
         strError = "cannot find OpenVideoStreamType";
         return 400;
@@ -292,7 +292,7 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementOpenVideoGBVideoTransMode = pXmlElementOpenVideo->FirstChildElement("GBVideoTransMode");
     if (NULL == pXmlElementOpenVideoGBVideoTransMode)
     {
-        printf("cannot find GBVideoTransMode\n");
+        VTDU_LOG_I("ParseXmlTransReady cannot find GBVideoTransMode: " << szBody);
         stCurMediaInfo.strOpenVideoGBVideoTransMode = "UDP";
     }
     else
@@ -304,7 +304,8 @@ int XmlParse::ParseXmlTransReady(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlTRANSINFO = doc.FirstChildElement("IE_TRANSINFO");
     if (NULL == pXmlTRANSINFO)
     {
-        printf("cannot find IE_OPEN_VIDEO\r\n%s\n", szBody);
+        VTDU_LOG_I("ParseXmlTransReady cannot find IE_TRANSINFO: " << szBody);
+        stCurMediaInfo.bTrans = false;
     }
     else
     {
@@ -335,7 +336,7 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlElementPuInfo = doc.FirstChildElement("IE_STOP_VIDEO");
     if (NULL == pXmlElementPuInfo)
     {
-        printf("cannot find IE_STOP_VIDEO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find IE_STOP_VIDEO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_STOP_VIDEO";
         return 400;
@@ -345,7 +346,7 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlElementPuPUID = pXmlElementPuInfo->FirstChildElement("PUID");
     if (NULL == pXmlElementPuPUID)
     {
-        printf("cannot find PUID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find PUID: " << szBody);
         doc.Clear();
         strError = "cannot find PUID";
         return 400;
@@ -355,7 +356,7 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlElementPuChannelID = pXmlElementPuInfo->FirstChildElement("ChannelID");
     if (NULL == pXmlElementPuChannelID)
     {
-        printf("cannot find PU ChannelID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find PU ChannelID: " << szBody);
         doc.Clear();
         strError = "cannot find PU ChannelID";
         return 400;
@@ -367,7 +368,7 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlElementPuStreamType = pXmlElementPuInfo->FirstChildElement("StreamType");
     if (NULL == pXmlElementPuStreamType)
     {
-        printf("cannot find PU StreamType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find PU StreamType: " << szBody);
         doc.Clear();
         strError = "cannot find PU StreamType";
         return 400;
@@ -378,7 +379,7 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlElementUserInfo = doc.FirstChildElement("IE_USER_INFO");
     if (NULL == pXmlElementUserInfo)
     {
-        printf("cannot find IE_USER_INFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find IE_USER_INFO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_USER_INFO";
         return 400;
@@ -386,7 +387,7 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlElementCuUserID = pXmlElementUserInfo->FirstChildElement("UserID");
     if (NULL == pXmlElementCuUserID)
     {
-        printf("cannot find UserID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find UserID: " << szBody);
         doc.Clear();
         strError = "cannot find CU UserID";
         return 400;
@@ -397,7 +398,8 @@ int XmlParse::ParseXmlTransStop(const char* szBody, stMediaInfo& stCurMediaInfo,
     TiXmlElement *pXmlTRANSINFO = doc.FirstChildElement("IE_TRANSINFO");
     if (NULL == pXmlTRANSINFO)
     {
-        printf("cannot find IE_OPEN_VIDEO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlTransStop cannot find IE_TRANSINFO: " << szBody);
+        stCurMediaInfo.bTrans = false;
     }
     else
     {
@@ -427,7 +429,7 @@ int XmlParse::ParseRegisterSuccessXml(const char* szBody, int &nErrorcode)
     TiXmlElement *pXmlElementResult = doc.FirstChildElement("IE_RESULT");
     if (NULL == pXmlElementResult)
     {
-        printf("cannot find IE_RESULT\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseRegisterSuccessXml cannot find IE_RESULT: " << szBody);
         doc.Clear();
         return -1;
     }
@@ -435,7 +437,7 @@ int XmlParse::ParseRegisterSuccessXml(const char* szBody, int &nErrorcode)
     TiXmlElement *pXmlElementErrorCode = pXmlElementResult->FirstChildElement("ErrorCode");
     if (NULL == pXmlElementErrorCode)
     {
-        printf("cannot find ErrorCode\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseRegisterSuccessXml cannot find ErrorCode: " << szBody);
         doc.Clear();
         return -1;
     }
@@ -464,7 +466,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuInfo = doc.FirstChildElement("IE_RTSP_INFO");
     if (NULL == pXmlElementCuInfo)
     {
-        printf("cannot find IE_RTSP_INFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find IE_RTSP_INFO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_RTSP_INFO";
         return 400;
@@ -473,7 +475,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuSwssion = pXmlElementCuInfo->FirstChildElement("Session");
     if (NULL == pXmlElementCuSwssion)
     {
-        printf("cannot find Session\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find Session: " << szBody);
         doc.Clear();
         strError = "cannot find CU Session";
         return 400;
@@ -484,7 +486,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuIP = pXmlElementCuInfo->FirstChildElement("ClientIP");
     if (NULL == pXmlElementCuIP)
     {
-        printf("cannot find  ClientIP\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find ClientIP: " << szBody);
         doc.Clear();
         strError = "cannot find  ClientIP";
         return 400;
@@ -494,7 +496,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuPort = pXmlElementCuInfo->FirstChildElement("Port");
     if (NULL == pXmlElementCuPort)
     {
-        printf("cannot find CU Port\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find CU Port: " << szBody);
         doc.Clear();
         strError = "cannot find CU Port";
         return 400;
@@ -508,7 +510,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuTransMode = pXmlElementCuInfo->FirstChildElement("TransMode");
     if (NULL == pXmlElementCuTransMode)
     {
-        printf("cannot find CU TransMode\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find CU TransMode: " << szBody);
         doc.Clear();
         strError = "cannot find CU TransMode";
         return 400;
@@ -519,7 +521,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuUserID = pXmlElementCuInfo->FirstChildElement("UserID");
     if (NULL == pXmlElementCuUserID)
     {
-        printf("cannot find UserID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find CU UserID: " << szBody);
         doc.Clear();
         strError = "cannot find CU UserID";
         return 400;
@@ -530,7 +532,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementVtduRoute = doc.FirstChildElement("IE_VTDU_ROUTE");
     if (NULL == pXmlElementVtduRoute)
     {
-        printf("cannot find IE_VTDU_ROUTE\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find IE_VTDU_ROUTE: " << szBody);
         doc.Clear();
         strError = "cannot find IE_VTDU_ROUTE";
         return 400;
@@ -539,7 +541,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementVtduRecvIP = pXmlElementVtduRoute->FirstChildElement("RecvIP");
     if (NULL == pXmlElementVtduRecvIP)
     {
-        printf("cannot find RecvIP\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find RecvIP: " << szBody);
         doc.Clear();
         strError = "cannot find RecvIP";
         return 400;
@@ -549,7 +551,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementVtduSendIP = pXmlElementVtduRoute->FirstChildElement("SendIP");
     if (NULL == pXmlElementVtduSendIP)
     {
-        printf("cannot find SendIP\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find SendIP: " << szBody);
         doc.Clear();
         strError = "cannot find SendIP";
         return 400;
@@ -561,7 +563,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementNetlink = doc.FirstChildElement("IE_NETLINK");
     if (NULL == pXmlElementNetlink)
     {
-        printf("cannot find IE_NETLINK\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find IE_NETLINK: " << szBody);
         doc.Clear();
         strError = "cannot find IE_NETLINK";
         return 400;
@@ -570,7 +572,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementTransType = pXmlElementNetlink->FirstChildElement("TransType");
     if (NULL == pXmlElementTransType)
     {
-        printf("cannot find TransType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find TransType: " << szBody);
         doc.Clear();
         strError = "cannot find TransType";
         return 400;
@@ -582,7 +584,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementStream = doc.FirstChildElement("IE_STREAM");
     if (NULL == pXmlElementStream)
     {
-        printf("cannot find IE_STREAM\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find IE_STREAM: " << szBody);
         doc.Clear();
         strError = "cannot find IE_STREAM";
         return 400;
@@ -591,7 +593,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementMediaType = pXmlElementStream->FirstChildElement("MediaType");
     if (NULL == pXmlElementMediaType)
     {
-        printf("cannot find MediaType\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find MediaType: " << szBody);
         doc.Clear();
         strError = "cannot find MediaType";
         return 400;
@@ -602,7 +604,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementCuMSCheck = pXmlElementStream->FirstChildElement("MSCheck");
     if (NULL == pXmlElementCuMSCheck)
     {
-        printf("cannot find CU MSCheck\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find CU MSCheck: " << szBody);
         doc.Clear();
         strError = "cannot find CU MSCheck";
         return 400;
@@ -613,7 +615,7 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlElementProtocol = pXmlElementStream->FirstChildElement("Protocol");
     if (NULL == pXmlElementProtocol)
     {
-        printf("cannot find Protocol\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStart cannot find Protocol: " << szBody);
         doc.Clear();
         strError = "cannot find Protocol";
         return 400;
@@ -625,7 +627,8 @@ int XmlParse::ParseXmlV3FileStart(const char* szBody, stMediaInfo& stCurMediaInf
     TiXmlElement *pXmlTRANSINFO = doc.FirstChildElement("IE_TRANSINFO");
     if (NULL == pXmlTRANSINFO)
     {
-        printf("cannot find IE_OPEN_VIDEO\r\n%s\n", szBody);
+        VTDU_LOG_I("ParseXmlV3FileStart cannot find IE_TRANSINFO: " << szBody);
+        stCurMediaInfo.bTrans = false;
     }
     else
     {
@@ -656,7 +659,7 @@ int XmlParse::ParseXmlV3FileStop(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementRtspInfo = doc.FirstChildElement("IE_RTSP_INFO");
     if (NULL == pXmlElementRtspInfo)
     {
-        printf("cannot find IE_RTSP_INFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStop cannot find IE_RTSP_INFO: " << szBody);
         doc.Clear();
         strError = "cannot find IE_RTSP_INFO";
         return 400;
@@ -666,7 +669,7 @@ int XmlParse::ParseXmlV3FileStop(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementSession = pXmlElementRtspInfo->FirstChildElement("Session");
     if (NULL == pXmlElementSession)
     {
-        printf("cannot find Session\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStop cannot find Session: " << szBody);
         doc.Clear();
         strError = "cannot find Session";
         return 400;
@@ -676,7 +679,7 @@ int XmlParse::ParseXmlV3FileStop(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlElementUserID = pXmlElementRtspInfo->FirstChildElement("UserID");
     if (NULL == pXmlElementUserID)
     {
-        printf("cannot find PU ChannelID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlV3FileStop cannot find PU ChannelID: " << szBody);
         doc.Clear();
         strError = "cannot find PU ChannelID";
         return 400;
@@ -687,7 +690,8 @@ int XmlParse::ParseXmlV3FileStop(const char* szBody, stMediaInfo& stCurMediaInfo
     TiXmlElement *pXmlTRANSINFO = doc.FirstChildElement("IE_TRANSINFO");
     if (NULL == pXmlTRANSINFO)
     {
-        printf("cannot find IE_OPEN_VIDEO\r\n%s\n", szBody);
+        VTDU_LOG_I("ParseXmlV3FileStop cannot find PU IE_TRANSINFO: " << szBody);
+        stCurMediaInfo.bTrans = false;
     }
     else
     {
@@ -716,7 +720,7 @@ int XmlParse::ParseXmlHiReg(const char* szBody, stHiInfo& stCurHi, std::string &
     TiXmlElement *pXmlElementSipInfo = doc.FirstChildElement("HI_SipInfo");
     if (NULL == pXmlElementSipInfo)
     {
-        printf("cannot find HI_SipInfo\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiReg cannot find HI_SipInfo: " << szBody);
         doc.Clear();
         strError = "cannot find HI_SipInfo";
         return -1;
@@ -725,7 +729,7 @@ int XmlParse::ParseXmlHiReg(const char* szBody, stHiInfo& stCurHi, std::string &
     TiXmlElement *pXmlElementSipId = pXmlElementSipInfo->FirstChildElement("HI_SipId");
     if (NULL == pXmlElementSipId)
     {
-        printf("cannot find HI_SipId\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiReg cannot find HI_SipId: " << szBody);
         doc.Clear();
         strError = "cannot find HI_SipId";
         return -1;
@@ -735,7 +739,7 @@ int XmlParse::ParseXmlHiReg(const char* szBody, stHiInfo& stCurHi, std::string &
     TiXmlElement *pXmlElementSipRegion = pXmlElementSipInfo->FirstChildElement("HI_SipRegion");
     if (NULL == pXmlElementSipRegion)
     {
-        printf("cannot find HI_SipRegion\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiReg cannot find HI_SipRegion: " << szBody);
         strError = "cannot find HI_SipRegion";
         return -1;
     }
@@ -744,7 +748,7 @@ int XmlParse::ParseXmlHiReg(const char* szBody, stHiInfo& stCurHi, std::string &
     TiXmlElement *pXmlElementSipIp = pXmlElementSipInfo->FirstChildElement("HI_SipIp");
     if (NULL == pXmlElementSipIp)
     {
-        printf("cannot find HI_SipIp\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiReg cannot find HI_SipIp: " << szBody);
         doc.Clear();
         strError = "cannot find HI_SipIp";
         return -1;
@@ -754,7 +758,7 @@ int XmlParse::ParseXmlHiReg(const char* szBody, stHiInfo& stCurHi, std::string &
     TiXmlElement *pXmlElementSipPort = pXmlElementSipInfo->FirstChildElement("HI_SipPort");
     if (NULL == pXmlElementSipPort)
     {
-        printf("cannot find HI_SipPort\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiReg cannot find HI_SipPort: " << szBody);
         strError = "cannot find HI_SipPort";
         return -1;
     }
@@ -764,7 +768,7 @@ int XmlParse::ParseXmlHiReg(const char* szBody, stHiInfo& stCurHi, std::string &
     TiXmlElement *pXmlElementMaxTransTaskNum = pXmlElementSipInfo->FirstChildElement("HI_MaxTransTaskNum");
     if (NULL == pXmlElementMaxTransTaskNum)
     {
-        printf("cannot find HI_MaxTransTaskNum\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiReg cannot find HI_MaxTransTaskNum: " << szBody);
         strError = "cannot find HI_MaxTransTaskNum";
         return -1;
     }
@@ -792,7 +796,7 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
     TiXmlElement *pXmlElementHiInfo = doc.FirstChildElement("IE_HI_INFO");
     if (NULL == pXmlElementHiInfo)
     {
-        printf("HandleHiHeartBeat cannot find IE_HI_INFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiHeartBeat cannot find IE_HI_INFO: " << szBody);
         doc.Clear();
         return -1;
     }
@@ -800,7 +804,7 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
     TiXmlElement *pXmlElementSipId = pXmlElementHiInfo->FirstChildElement("HI_SipId");
     if (NULL == pXmlElementSipId)
     {
-        printf("HandleHiHeartBeat cannot find pXmlElementSipId\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiHeartBeat cannot find pXmlElementSipId: " << szBody);
         doc.Clear();
         return -1;
     }
@@ -812,7 +816,7 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
         TiXmlElement *pXmlElementSipRegion = pXmlElementHiInfo->FirstChildElement("HI_SipRegion");
         if (NULL == pXmlElementSipRegion)
         {
-            printf("HandleHiHeartBeat cannot find HI_SipRegion\r\n%s\n", szBody);
+            VTDU_LOG_E("ParseXmlHiHeartBeat cannot find HI_SipRegion: " << szBody);
             break;
         }
         stCurHi.strSipRegion = pXmlElementSipRegion->GetText();
@@ -820,7 +824,7 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
         TiXmlElement *pXmlElementSipIp = pXmlElementHiInfo->FirstChildElement("HI_SipIp");
         if (NULL == pXmlElementSipIp)
         {
-            printf("HandleHiHeartBeat cannot find pXmlElementSipIp\r\n%s\n", szBody);
+            VTDU_LOG_E("ParseXmlHiHeartBeat cannot find pXmlElementSipIp: " << szBody);
             break;
         }
         stCurHi.strSipIp = pXmlElementSipIp->GetText();
@@ -828,7 +832,7 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
         TiXmlElement *pXmlElementSipPort = pXmlElementHiInfo->FirstChildElement("HI_SipPort");
         if (NULL == pXmlElementSipPort)
         {
-            printf("HandleHiHeartBeat cannot find HI_SipPort\r\n%s\n", szBody);
+            VTDU_LOG_E("ParseXmlHiHeartBeat cannot find HI_SipPort: " << szBody);
             break;
         }
         std::string strSipPort = pXmlElementSipPort->GetText();
@@ -837,7 +841,7 @@ int XmlParse::ParseXmlHiHeartBeat(const char* szBody, stHiInfo& stCurHi, bool& b
         TiXmlElement *pXmlElementMaxTransTaskNum = pXmlElementHiInfo->FirstChildElement("HI_MaxTransTaskNum");
         if (NULL == pXmlElementMaxTransTaskNum)
         {
-            printf("HandleHiHeartBeat cannot find HI_MaxTransTaskNum\r\n%s\n", szBody);
+            VTDU_LOG_E("ParseXmlHiHeartBeat cannot find HI_MaxTransTaskNum: " << szBody);
             break;
         }
         std::string strMaxTransTaskNum = pXmlElementMaxTransTaskNum->GetText();
@@ -866,7 +870,7 @@ int XmlParse::ParseXmlHiTansRsp(const char* szBody, std::string& strHiTaskId, in
     TiXmlElement *pXmlElementStreamInfo = doc.FirstChildElement("VTDU_STREAM_INFO");
     if (NULL == pXmlElementStreamInfo)
     {
-        printf("HandleHiTansRsp cannot find VTDU_STREAM_INFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiTansRsp cannot find VTDU_STREAM_INFO: " << szBody);
         doc.Clear();
         return -1;
     }
@@ -874,7 +878,7 @@ int XmlParse::ParseXmlHiTansRsp(const char* szBody, std::string& strHiTaskId, in
     TiXmlElement *pXmlElementCuHiRecvPort = pXmlElementStreamInfo->FirstChildElement("HI_RECV_PORT");
     if (NULL == pXmlElementCuHiRecvPort)
     {
-        printf("HandleHiTansRsp cannot find HI_RECV_PORT\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiTansRsp cannot find HI_RECV_PORT: " << szBody);
         doc.Clear();
         return -1;;
     }
@@ -884,7 +888,7 @@ int XmlParse::ParseXmlHiTansRsp(const char* szBody, std::string& strHiTaskId, in
     TiXmlElement *pXmlElementTaskId = pXmlElementStreamInfo->FirstChildElement("VTDU_TASK_ID");
     if (NULL == pXmlElementTaskId)
     {
-        printf("HandleHiTansRsp cannot find VTDU_TASK_ID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiTansRsp cannot find VTDU_TASK_ID: " << szBody);
         doc.Clear();
         return -1;;
     }
@@ -910,7 +914,7 @@ int XmlParse::ParseXmlHiCutout(const char* szBody, std::string& strHiTaskId)
     TiXmlElement *pXmlElementStreamInfo = doc.FirstChildElement("VTDU_STREAM_INFO");
     if (NULL == pXmlElementStreamInfo)
     {
-        printf("sipServerHandleTansRsp cannot find VTDU_STREAM_INFO\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiCutout cannot find VTDU_STREAM_INFO: " << szBody);
         doc.Clear();
         return -1;
     }
@@ -918,7 +922,7 @@ int XmlParse::ParseXmlHiCutout(const char* szBody, std::string& strHiTaskId)
     TiXmlElement *pXmlElementTaskId = pXmlElementStreamInfo->FirstChildElement("VTDU_TASK_ID");
     if (NULL == pXmlElementTaskId)
     {
-        printf("sipServerHandleTansRsp cannot find VTDU_TASK_ID\r\n%s\n", szBody);
+        VTDU_LOG_E("ParseXmlHiCutout cannot find VTDU_TASK_ID: " << szBody);
         doc.Clear();
         return -1;
     }

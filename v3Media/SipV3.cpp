@@ -46,7 +46,7 @@ int SipUA_AnswerInfo(void *pMsgPtr, int status, const char *pszBody, int iBodyLe
     sprintf(contact, "sip:%s@%s:%d", g_stSipCfg.m_strLocalSipId.c_str(), g_stSipCfg.m_strServerDomain.c_str(), g_stSipCfg.m_iSipPort);
     if (ret != 0 || answer == NULL)
     {
-        printf("eXosip_message_build_answer failed\n");
+        VTDU_LOG_E("eXosip_message_build_answer failed. ret: " << ret);
         return ret;
     }
     osip_message_set_header(answer, "Contact", contact);
@@ -85,15 +85,15 @@ static void *threadEventLoop(void *pParam)
             continue;
         }
 
-        if (evt->type >= 0 && evt->type <= EXOSIP_EVENT_COUNT)
-        {
-            printf("recv sip msg= , tid=%d, did=%d, rid=%d, cid=%d, sid=%d, nid=%d\n",
-                evt->tid, evt->did, evt->rid, evt->cid, evt->sid, evt->nid);
-        }
-        else
-        {
-            printf("recv sip msg=%d, out of range.\n", evt->type);
-        }
+        //if (evt->type >= 0 && evt->type <= EXOSIP_EVENT_COUNT)
+        //{
+        //    printf("recv sip msg= , tid=%d, did=%d, rid=%d, cid=%d, sid=%d, nid=%d\n",
+        //        evt->tid, evt->did, evt->rid, evt->cid, evt->sid, evt->nid);
+        //}
+        //else
+        //{
+        //    printf("recv sip msg=%d, out of range.\n", evt->type);
+        //}
 
         eXosip_lock();
         // 自动处理401
@@ -105,26 +105,21 @@ static void *threadEventLoop(void *pParam)
         {
             /*注册类消息*/
         case EXOSIP_REGISTRATION_NEW:
-            printf("EXOSIP_REGISTRATION_NEW\n");
             break;
 
         case EXOSIP_REGISTRATION_SUCCESS:
-            printf("SIPUA_MSG_REGISTER_SUCCESS.\n");
             callbackCallMsg(evt, SIPUA_MSG_REGISTER_SUCCESS);
             break;
 
         case EXOSIP_REGISTRATION_FAILURE:
-            printf("SIPUA_MSG_REGISTER_FAILURE.\n");
             callbackCallMsg(evt, SIPUA_MSG_REGISTER_FAILURE);
             break;
 
         case EXOSIP_REGISTRATION_REFRESHED:
-            printf("SIPUA_MSG_REGISTER_REFRESH.\n");
             break;
 
             /*呼叫类消息*/
         case EXOSIP_CALL_INVITE: //invite
-            printf("SIPUA_MSG_CALL_INVITE_INCOMING.\n");
             break;
 
         case EXOSIP_CALL_ANSWERED: //invite响应
@@ -132,52 +127,35 @@ static void *threadEventLoop(void *pParam)
         case EXOSIP_CALL_REQUESTFAILURE:
         case EXOSIP_CALL_SERVERFAILURE:
         case EXOSIP_CALL_GLOBALFAILURE:
-            if (200 == evt->response->status_code)
-            {
-                printf("SIPUA_MSG_CALL_ANSWER_200OK.\n");
-            }
-            else
-            {
-                printf("SIPUA_MSG_CALL_ANSWER_RSP.\n");
-                printf("recv invite response, code=%d", evt->response->status_code);
-            }
             break;
 
         case EXOSIP_CALL_ACK: //ack
-            printf("SIPUA_MSG_CALL_ACK.\n");
             break;
 
         case EXOSIP_CALL_CLOSED: //呼叫关闭
-            printf("SIPUA_MSG_CALL_BYE.\n");
             break;
 
             /*MESSAGE类消息*/
         case EXOSIP_MESSAGE_NEW:
             if (MSG_IS_REGISTER(evt->request))  /*注册消息*/
             {
-                printf("SIPUA_MSG_REGISTER_NEW.\n");
                 SipUA_AnswerInfo(evt, 200, NULL, 0);
             }
             else if (MSG_IS_MESSAGE(evt->request))
             {
-                printf("SIPUA_MSG_MESSAGE.\n");
                 SipUA_AnswerInfo(evt, 200, NULL, 0);
             }
             else if (MSG_IS_INFO(evt->request))
             {
                 callbackCallMsg(evt, SIPUA_MSG_INFO);
-                printf("SIPUA_MSG_INFO.\n");
             }
             else if (MSG_IS_OPTIONS(evt->request))
             {
-                printf("SIPUA_MSG_INFO.\n");
                 SipUA_AnswerInfo(evt, 200, NULL, 0);
-                //sipServerHandleHiMessage(evt);
             }
             break;
 
         case EXOSIP_MESSAGE_ANSWERED: //MESSAGE 200 ok
-            printf("SIPUA_MSG_MESSAGE_ANSWERED.\n");
             break;
 
         case EXOSIP_MESSAGE_REQUESTFAILURE: //MESSAGE 400响应
@@ -186,7 +164,6 @@ static void *threadEventLoop(void *pParam)
             {
                 callbackCallMsg(evt, SIPUA_MSG_OPTION_REQUESTFAILURE);  
             }
-            printf("SIPUA_MSG_MESSAGE_REQUESTFAILURE.\n");
             break;
 
             /*订阅类消息*/
@@ -219,7 +196,7 @@ int SipUA_Init(const ConfigSipServer& stSipCfg)
     int ret = eXosip_init();
     if (0 != ret)
     {
-        printf("eXosip_init ret=%d\n", ret);
+        VTDU_LOG_E("eXosip_init failed. ret: " << ret);
         return -1;
     }
     eXosip_set_user_agent(UA_STRING);
@@ -231,7 +208,7 @@ int SipUA_Init(const ConfigSipServer& stSipCfg)
     if (0 != ret)
     {
         eXosip_quit();
-        printf("eXosip_listen_addr ret=%d, proto=%d, ip=%s, port=%d\n", ret, proto, stSipCfg.m_strSipAddr.c_str(), stSipCfg.m_iSipPort);
+        VTDU_LOG_E("eXosip_listen_addr failed. ret: " << ret << ", proto: " << proto << ", ip: " << stSipCfg.m_strSipAddr << ", port:" << stSipCfg.m_iSipPort);
         return -1;
     }
     
@@ -332,7 +309,7 @@ int SipUA_InitMessage(const char * pszMethod, const char *pszSrcId, const char *
     int ret = eXosip_message_build_request(&message, pszMethod, szDest, szSrc, NULL);
     if (0 != ret)
     {
-        printf("build message request failed, src[%s], dest[%s]", szSrc, szDest);
+        VTDU_LOG_E("build message request failed, src: " << szSrc << ", dest:" << szDest);
         return -1;
     }
     osip_message_set_header(message, "Contact", contact);
@@ -395,10 +372,9 @@ int SipUA_Register(const char *pszSipId, const char * pszSipRegion, const char *
         nRegid = eXosip_register_build_initial_register(fromuser, proxy, contact, expires, &reg);
         if (nRegid < 1)
         {
-            printf("init register failed, from[%s], proxy[%s], contact[%s], ret[%d]\n", fromuser, proxy, contact, nRegid);
+            VTDU_LOG_E("init register failed, from: " << fromuser << ", proxy:" << proxy << ", contact:" << contact << ", ret:" << nRegid);
             return -1;
         }
-        //printf("init register success, from[%s], proxy[%s]\n", fromuser, proxy);
     }
 
     //设置消息体
@@ -408,7 +384,7 @@ int SipUA_Register(const char *pszSipId, const char * pszSipRegion, const char *
         osip_message_set_content_type(reg, "txt/xml");
         if (0 != ret)
         {
-            printf("set body failed, bodylen[%d] [%s].\n", iBodyLen, pszBody);
+            VTDU_LOG_E("set body failed, bodylen: " << iBodyLen << ", Body :" << pszBody);
             return -1;
         }
     }
@@ -420,7 +396,7 @@ int SipUA_Register(const char *pszSipId, const char * pszSipRegion, const char *
     ret = eXosip_register_send_register(nRegid, reg);
     if (ret != 0)
     {
-        printf("send register failed, from[%s], proxy[%s]\n", fromuser, proxy);
+        VTDU_LOG_E("send register failed, from: " << fromuser << ", proxy :" << proxy);
         return -1;
     }
     return nRegid;
@@ -441,7 +417,7 @@ int SipUA_GetRequestBodyContent(void *pMsgPtr, char *pszOutBody, int iMaxBodyLen
     eXosip_event_t *evt = (eXosip_event_t *)pMsgPtr;
     if (NULL == evt->request)
     {
-        printf("get request body failed, request null.");
+        VTDU_LOG_E("SipUA_GetRequestBodyContent get request body failed, request null.");
         return -1;
     }
 
@@ -457,12 +433,12 @@ int SipUA_GetRequestBodyContent(void *pMsgPtr, char *pszOutBody, int iMaxBodyLen
         }
         else
         {
-            printf("get request body failed, size[%d] out of range[%d]", ret, iMaxBodyLen);
+            VTDU_LOG_E("SipUA_GetRequestBodyContent get request body failed, size: " << ret << ", out of range:" << iMaxBodyLen);
         }
     }
     else
     {
-        printf("osip_message_get_body failed, body is null.");
+        VTDU_LOG_E("osip_message_get_body failed, body is null.");
         return -1;
     }
 
@@ -484,7 +460,7 @@ int SipUA_GetResponseBodyContent(void *pMsgPtr, char *pszOutBody, int iMaxBodyLe
     eXosip_event_t *evt = (eXosip_event_t *)pMsgPtr;
     if (NULL == evt->response)
     {
-        printf("get response body failed, request null.");
+        VTDU_LOG_E("get response body failed, request null.");
         return -1;
     }
 
@@ -500,7 +476,7 @@ int SipUA_GetResponseBodyContent(void *pMsgPtr, char *pszOutBody, int iMaxBodyLe
         }
         else
         {
-            printf("get request body failed, size[%d] out of range[%d]", ret, iMaxBodyLen);
+            VTDU_LOG_E("get request body failed, size: " << ret << ", out of range:" << iMaxBodyLen);
         }
     }
 
@@ -802,8 +778,7 @@ int SipUA_Timeout(const stMediaInfo &stCurMediaInfo, const ConfigSipServer &conf
         configSipServer.m_iServerPort, szKeepaliveXml, iXmlLen, ";MSG_TYPE=MSG_VTDU_VIDEO_TIMEOUT_REQ");
     if (ret < 0)
     {
-        printf("send MSG_VTDU_VIDEO_TIMEOUT_REQ failed, server[%s@%s:%d], body: %s", configSipServer.m_strLocalSipId.c_str(),
-            configSipServer.m_strServerIP.c_str(), configSipServer.m_iServerPort, szKeepaliveXml);
+        VTDU_LOG_E("send MSG_VTDU_VIDEO_TIMEOUT_REQ failed, server: " << configSipServer.m_strLocalSipId << "@" << configSipServer.m_strServerIP << ":" << configSipServer.m_iServerPort << ", body: " << szKeepaliveXml);
     }
 
     return ret;
@@ -835,8 +810,7 @@ int SipUA_HeartBeat(const ConfigSipServer &configSipServer, int nInstreamNum, in
         configSipServer.m_iServerPort, szKeepaliveXml, iXmlLen, ";MSG_TYPE=MSG_VTDU_HEART");
     if (ret < 0)
     {
-        printf("send keepalive failed, server[%s@%s:%d], body: %s", configSipServer.m_strLocalSipId.c_str(),
-            configSipServer.m_strServerIP.c_str(), configSipServer.m_iServerPort, szKeepaliveXml);
+        VTDU_LOG_E("send keepalive failed, server: " << configSipServer.m_strLocalSipId << "@" << configSipServer.m_strServerIP << ":" << configSipServer.m_iServerPort << ", body: " << szKeepaliveXml);
     }
 
     return ret;

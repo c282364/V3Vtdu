@@ -15,7 +15,7 @@ int createFdUdp(int port, bool bSend, const std::string &strIp)
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd < 0)
     {
-        printf("create socket failed, err=%d\n", errno);
+        VTDU_LOG_E("create socket failed, err: " << errno);
         return -1;
     }
 
@@ -33,7 +33,7 @@ int createFdUdp(int port, bool bSend, const std::string &strIp)
     int ret = bind(fd, (struct sockaddr*)&localAddr, sizeof(struct sockaddr));
     if (ret < 0)
     {
-        printf("bind port[%d] failed, errno=%d\n", port, errno);
+        VTDU_LOG_E("bind port failed, port: " << port << ", error: " << errno);
 #ifdef WIN32
         closesocket(fd);
 #else
