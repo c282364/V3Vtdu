@@ -223,13 +223,15 @@ int GBRtpPsOverUdpStream::stop()
         } */ 
     }
 
-    mtSendList.lock();
-    std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
-    for (; itor != m_mapSendList.end(); ++itor)
     {
-        closeFd(itor->second.fdSend);
+        std::lock_guard<std::mutex> lock(mtSendList);
+        std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
+        for (; itor != m_mapSendList.end(); ++itor)
+        {
+            closeFd(itor->second.fdSend);
+        }
     }
-    mtSendList.unlock();
+
 
     if (m_fdRtpRecv > 0)
     {
@@ -279,9 +281,11 @@ int GBRtpPsOverUdpStream::addOneSend(const std::string &strClientIp, int nClient
     curSendClientInfo.nSendPort = nSendPort;
 
     curSendClientInfo.stClientAddr = sockaddrV3Clinet;
-    mtSendList.lock();
-    m_mapSendList[strCuUserID] = curSendClientInfo;
-    mtSendList.unlock();
+
+    {
+        std::lock_guard<std::mutex> lock(mtSendList);
+        m_mapSendList[strCuUserID] = curSendClientInfo;
+    }
     m_nOutNum++;
 
     return 0;
@@ -300,22 +304,22 @@ int GBRtpPsOverUdpStream::DelOneSend(const std::string &strCuUserID, int &nCurSe
 {
     int nSendNum = 0;
     //删除发送列表
-    mtSendList.lock();
-    std::map<std::string, stSendClientInfo>::iterator itorSendList = m_mapSendList.find(strCuUserID);
-    if (itorSendList != m_mapSendList.end())
     {
-        closeFd(itorSendList->second.fdSend);
-        nCurSendPort = itorSendList->second.nSendPort;
-        m_nOutNum--;
-        m_mapSendList.erase(itorSendList);
+        std::lock_guard<std::mutex> lock(mtSendList);
+        std::map<std::string, stSendClientInfo>::iterator itorSendList = m_mapSendList.find(strCuUserID);
+        if (itorSendList != m_mapSendList.end())
+        {
+            closeFd(itorSendList->second.fdSend);
+            nCurSendPort = itorSendList->second.nSendPort;
+            m_nOutNum--;
+            m_mapSendList.erase(itorSendList);
+        }
+        else
+        {
+            return -1;
+        }
+        nSendNum = m_mapSendList.size();
     }
-    else
-    {
-        mtSendList.unlock();      
-        return -1;
-    }
-    nSendNum = m_mapSendList.size();
-    mtSendList.unlock();
     
     return nSendNum;
 }
@@ -489,32 +493,33 @@ int GBRtpPsOverUdpStream::sendOneBlock(unsigned char *pBlockData, int iBlockLen,
     int sendret = 0;
 
     //发送客户端
-    mtSendList.lock();
-    std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
-    for (; itor != m_mapSendList.end(); ++itor)
     {
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 50 * 1000;
-        fd_set writeFdSet;
-        FD_ZERO(&writeFdSet);
-        FD_SET(itor->second.fdSend, &writeFdSet);
-        int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
-        if (ret1 <= 0)
+        std::lock_guard<std::mutex> lock(mtSendList);
+        std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
+        for (; itor != m_mapSendList.end(); ++itor)
         {
-            VTDU_LOG_E("select RtpSend failed, port: " << itor->second.nSendPort);
-        }
-        else
-        {
-            if (FD_ISSET(itor->second.fdSend, &writeFdSet))
+            struct timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = 50 * 1000;
+            fd_set writeFdSet;
+            FD_ZERO(&writeFdSet);
+            FD_SET(itor->second.fdSend, &writeFdSet);
+            int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
+            if (ret1 <= 0)
             {
-                //发送
-                sendret = sendto(itor->second.fdSend, (char*)pSendBuff, len, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
-                
+                VTDU_LOG_E("select RtpSend failed, port: " << itor->second.nSendPort);
+            }
+            else
+            {
+                if (FD_ISSET(itor->second.fdSend, &writeFdSet))
+                {
+                    //发送
+                    sendret = sendto(itor->second.fdSend, (char*)pSendBuff, len, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
+
+                }
             }
         }
     }
-    mtSendList.unlock();
 
     return sendret;
 }
@@ -584,31 +589,32 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                     i64LastRecvTime = Comm_GetSecFrom1970();
                     unsigned char* pRtpData = (unsigned char*)szRecvBuff;
                     //send data 发送数据到客户端
-                    mtSendList.lock();
-                    std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
-                    for (; itor != m_mapSendList.end(); ++itor)
                     {
-                        struct timeval tv;
-                        tv.tv_sec = 0;
-                        tv.tv_usec = 50 * 1000;
-                        fd_set writeFdSet;
-                        FD_ZERO(&writeFdSet);
-                        FD_SET(itor->second.fdSend, &writeFdSet);
-                        int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
-                        if (ret1 <= 0)
+                        std::lock_guard<std::mutex> lock(mtSendList);
+                        std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
+                        for (; itor != m_mapSendList.end(); ++itor)
                         {
-                            VTDU_LOG_E("select RtpSend failed,port: " << itor->second.nSendPort);
-                        }
-                        else
-                        {
-                            if (FD_ISSET(itor->second.fdSend, &writeFdSet))
+                            struct timeval tv;
+                            tv.tv_sec = 0;
+                            tv.tv_usec = 50 * 1000;
+                            fd_set writeFdSet;
+                            FD_ZERO(&writeFdSet);
+                            FD_SET(itor->second.fdSend, &writeFdSet);
+                            int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
+                            if (ret1 <= 0)
                             {
-                                //发送
-                                int sendret = sendto(itor->second.fdSend, (char*)szRecvBuff, ret, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
+                                VTDU_LOG_E("select RtpSend failed,port: " << itor->second.nSendPort);
+                            }
+                            else
+                            {
+                                if (FD_ISSET(itor->second.fdSend, &writeFdSet))
+                                {
+                                    //发送
+                                    int sendret = sendto(itor->second.fdSend, (char*)szRecvBuff, ret, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
+                                }
                             }
                         }
                     }
-                    mtSendList.unlock();
                 }
             }
         }

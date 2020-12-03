@@ -102,22 +102,24 @@ int VtduServer::Init(const std::string &strCfgFile)
     }
 
     //收流端口
-    mtRecvPort.lock();
-    for (int i = m_configSipServer.m_nRecvV3PortBegin; i <= m_configSipServer.m_nRecvV3PortEnd;)
     {
-        g_vecRecvPort.push_back(i);
-        i += 2;
+        std::lock_guard<std::mutex> lock(mtRecvPort);
+        for (int i = m_configSipServer.m_nRecvV3PortBegin; i <= m_configSipServer.m_nRecvV3PortEnd;)
+        {
+            g_vecRecvPort.push_back(i);
+            i += 2;
+        }
     }
-    mtRecvPort.unlock();
 
     //发流端口
-    mtSendV3Port.lock();
-    for (int i = m_configSipServer.m_nSendV3PortBegin; i <= m_configSipServer.m_nSendV3PortEnd;)
     {
-        g_vecSendV3Port.push_back(i);
-        i += 2;
+        std::lock_guard<std::mutex> lock(mtSendV3Port);
+        for (int i = m_configSipServer.m_nSendV3PortBegin; i <= m_configSipServer.m_nSendV3PortEnd;)
+        {
+            g_vecSendV3Port.push_back(i);
+            i += 2;
+        }
     }
-    mtSendV3Port.unlock();
 
     //sip初始化
     int ret = SipUA_Init(m_configSipServer);
@@ -222,18 +224,19 @@ void VtduServer::threadHiManager()
 {
     do
     {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         long long nCurTime = Comm_GetSecFrom1970();
-        mtRegHi.lock();
+        std::lock_guard<std::mutex> lock(mtRegHi);
         std::map<std::string, stHiInfo>::iterator iotr = g_mapRegHiInfo.begin();
         for (; iotr != g_mapRegHiInfo.end(); )
         {
-            VTDU_LOG_I("CHECK HiTrans, id_ip: ", iotr->second.strSipId << "_" << iotr->second.strSipIp<< ", task num: " << iotr->second.nTansTaskNum);
+            VTDU_LOG_I("CHECK HiTrans, id_ip: ", iotr->second.strSipId << "_" << iotr->second.strSipIp << ", task num: " << iotr->second.nTansTaskNum);
             //15秒没有心跳 判断离线
             if (nCurTime - iotr->second.nHeartBeat > 15)
             {
                 VTDU_LOG_I("CHECK HiTrans, Hitans cut off: ", iotr->second.strSipId << "_" << iotr->second.strSipIp);
                 //停止接收 回收该模块所有端口
-                mtVtduPreviewTask.lock();
+                std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
                 std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.begin();
                 for (; itorTask != g_mapVtduPreviewTaskInfo.end();)
                 {
@@ -244,13 +247,13 @@ void VtduServer::threadHiManager()
                         //回收所有发送端口
                         std::vector<int> vecSendPort;
                         pStream->getSendPort(vecSendPort);
-                        mtSendV3Port.lock();
-                        for (std::vector<int>::iterator itorvecSendPort = vecSendPort.begin(); itorvecSendPort != vecSendPort.end(); ++itorvecSendPort)
                         {
-                            g_vecSendV3Port.push_back(*itorvecSendPort);
+                            std::lock_guard<std::mutex> lock(mtSendV3Port);
+                            for (std::vector<int>::iterator itorvecSendPort = vecSendPort.begin(); itorvecSendPort != vecSendPort.end(); ++itorvecSendPort)
+                            {
+                                g_vecSendV3Port.push_back(*itorvecSendPort);
+                            }
                         }
-                        mtSendV3Port.unlock();
-
                         int nRecvPort = -1;
                         pStream->getRecvPort(nRecvPort);
                         int nOutstreamNum;
@@ -258,9 +261,8 @@ void VtduServer::threadHiManager()
                         //回收接收端口
                         if (-1 != nRecvPort)
                         {
-                            mtRecvPort.lock();
+                            std::lock_guard<std::mutex> lock(mtRecvPort);
                             g_vecRecvPort.push_back(nRecvPort);
-                            mtRecvPort.unlock();
                         }
 
                         g_nOutstreamNum -= nOutstreamNum;
@@ -281,7 +283,6 @@ void VtduServer::threadHiManager()
                         ++itorTask;
                     }
                 }
-                mtVtduPreviewTask.unlock();
                 iotr = g_mapRegHiInfo.erase(iotr);
             }
             else
@@ -289,10 +290,6 @@ void VtduServer::threadHiManager()
                 ++iotr;
             }
         }
-        mtRegHi.unlock();
-
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-
     } while (!g_bStopHiManager);
 
     return ;
@@ -380,14 +377,15 @@ void VtduServer::threadStreamCBMsgLoop()
     {
         bool bGet = false;
         stCutOffInfo stCurCutOffInfo;
-        mtCutOff.lock();
-        if (g_vecCutOff.size() > 0)
         {
-            stCurCutOffInfo = g_vecCutOff.back();
-            g_vecCutOff.pop_back();
-            bGet = true;
+            std::lock_guard<std::mutex> lock(mtCutOff);
+            if (g_vecCutOff.size() > 0)
+            {
+                stCurCutOffInfo = g_vecCutOff.back();
+                g_vecCutOff.pop_back();
+                bGet = true;
+            }
         }
-        mtCutOff.unlock();
 
         if (bGet)
         {
@@ -398,39 +396,42 @@ void VtduServer::threadStreamCBMsgLoop()
             std::string strHiSipId = "";
             stMediaInfo stCurMediaInfo;
             TASK_type enTaskType = TASK_type::PLAYBACK;
-            mtVtduPreviewTask.lock();
-            std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strHiTaskId);
-            if (itorTask != g_mapVtduPreviewTaskInfo.end())
             {
-                //父类是否可以这么用 需要测试
-                pStream = (Stream*)(itorTask->second.pStream);
-                stCurMediaInfo = itorTask->second.stMedia;
-                enTaskType = itorTask->second.enTaskType;
-                strHiSipId = itorTask->second.strHiSipId;
-                g_mapVtduPreviewTaskInfo.erase(itorTask);
+                std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+                std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strHiTaskId);
+                if (itorTask != g_mapVtduPreviewTaskInfo.end())
+                {
+                    //父类是否可以这么用 需要测试
+                    pStream = (Stream*)(itorTask->second.pStream);
+                    stCurMediaInfo = itorTask->second.stMedia;
+                    enTaskType = itorTask->second.enTaskType;
+                    strHiSipId = itorTask->second.strHiSipId;
+                    g_mapVtduPreviewTaskInfo.erase(itorTask);
+                }
             }
-            mtVtduPreviewTask.unlock();
+
             if (NULL != pStream)
             {
                 pStream->stop();
                 //回收所有发送端口
                 std::vector<int> vecSendPort;
                 pStream->getSendPort(vecSendPort);
-                mtSendV3Port.lock();
-                for (std::vector<int>::iterator itorvecSendPort = vecSendPort.begin(); itorvecSendPort != vecSendPort.end(); ++itorvecSendPort)
+
                 {
-                    g_vecSendV3Port.push_back(*itorvecSendPort);
+                    std::lock_guard<std::mutex> lock(mtSendV3Port);
+                    for (std::vector<int>::iterator itorvecSendPort = vecSendPort.begin(); itorvecSendPort != vecSendPort.end(); ++itorvecSendPort)
+                    {
+                        g_vecSendV3Port.push_back(*itorvecSendPort);
+                    }
                 }
-                mtSendV3Port.unlock();
 
                 //回收接收端口
                 int nRecvPort = -1;
                 pStream->getRecvPort(nRecvPort);
                 if (-1 != nRecvPort)
                 {
-                    mtRecvPort.lock();
+                    std::lock_guard<std::mutex> lock(mtRecvPort);
                     g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
                 }
 
                 //更新输入输出流路数
@@ -455,19 +456,22 @@ void VtduServer::threadStreamCBMsgLoop()
                 std::string strHiId = "";
                 std::string strHiIp = "";
                 int nHiPort = 0;
-                mtRegHi.lock();
-                std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
-                if (itorRegHi == g_mapRegHiInfo.end())
+
                 {
-                    VTDU_LOG_E("threadStreamCBMsgLoop cannot find hi info, HiSipId::" << strHiSipId);
+                    std::lock_guard<std::mutex> lock(mtRegHi);
+                    std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
+                    if (itorRegHi == g_mapRegHiInfo.end())
+                    {
+                        VTDU_LOG_E("threadStreamCBMsgLoop cannot find hi info, HiSipId::" << strHiSipId);
+                    }
+                    else
+                    {
+                        strHiId = itorRegHi->second.strSipId;
+                        strHiIp = itorRegHi->second.strSipIp;
+                        nHiPort = itorRegHi->second.nSipPort;
+                    }
                 }
-                else
-                {
-                    strHiId = itorRegHi->second.strSipId;
-                    strHiIp = itorRegHi->second.strSipIp;
-                    nHiPort = itorRegHi->second.nSipPort;
-                }
-                mtRegHi.unlock();
+
                 if (strHiId != "" && strHiIp != "" && nHiPort != 0)
                 {
                     m_oCommunicationHi.sendStopTransReq(strHiTaskId, strHiIp, nHiPort);
@@ -673,20 +677,17 @@ void VtduServer::HandleStreamInfoCallBack(int nType, std::string strCbInfo)
 {
     stCutOffInfo stCurCutOffInfo;
     stCurCutOffInfo.strCutOffInfo = strCbInfo;
+    std::lock_guard<std::mutex> lock(mtCutOff);
     switch (nType)
     {
     case 0: //v3断流
         stCurCutOffInfo.enCutOffType = CUTOFF_type::V3;
-        mtCutOff.lock();
         g_vecCutOff.push_back(stCurCutOffInfo);
-        mtCutOff.unlock();
         VTDU_LOG_I("HandleStreamInfoCallBack v3 cut off, task: " << stCurCutOffInfo.strCutOffInfo);
         break;
     case 1: // hi模块断流
         stCurCutOffInfo.enCutOffType = CUTOFF_type::HiTrans;
-        mtCutOff.lock();
         g_vecCutOff.push_back(stCurCutOffInfo);
-        mtCutOff.unlock();
         VTDU_LOG_I("HandleStreamInfoCallBack Hi cut off, task: " << stCurCutOffInfo.strCutOffInfo);
         break;
     default:
@@ -751,6 +752,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
         //非国标的私有流不转码
         if (stCurMediaInfo.nPuProtocol != 1)
         {
+            VTDU_LOG_I("非国标的私有流不转码 nPuProtocol: " << stCurMediaInfo.nPuProtocol)
             stCurMediaInfo.bTrans = false;
         }
         
@@ -767,37 +769,30 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
         int nExitTaskRecvPort = 0;
         std::string strExitTaskRecvIp = "";
 
-        mtVtduPreviewTask.lock();
-        std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
-        if (itorTask != g_mapVtduPreviewTaskInfo.end())
         {
-            bExitTask = true;
-            poStream = (Stream *)itorTask->second.pStream;
-            nExitTaskRecvPort = itorTask->second.nRecvPort;
-            strExitTaskRecvIp = itorTask->second.strRecvIp;
-            poStream->getOutstreamNum(nInitialUser);
+            std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+            std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
+            if (itorTask != g_mapVtduPreviewTaskInfo.end())
+            {
+                bExitTask = true;
+                poStream = (Stream *)itorTask->second.pStream;
+                nExitTaskRecvPort = itorTask->second.nRecvPort;
+                strExitTaskRecvIp = itorTask->second.strRecvIp;
+                poStream->getOutstreamNum(nInitialUser);
+            }
         }
-        mtVtduPreviewTask.unlock();
-
 
         //查找可使用端口
         int nSendV3Port = -1;
 
-        mtSendV3Port.lock();
-        if (g_vecSendV3Port.size() == 0)
+        int nRet = GetSendPort(nSendV3Port, strError);
+        if (nRet < 0)
         {
             nStatus = 400;
-            VTDU_LOG_E("g_vecSendV3Port is NULL");
-            strError = "SendV3Port is use up";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-            mtSendV3Port.unlock();
             return;
         }
-        std::vector<int>::iterator itorSendV3 = g_vecSendV3Port.begin();
-        nSendV3Port = *itorSendV3;
-        g_vecSendV3Port.erase(itorSendV3);
-        mtSendV3Port.unlock();
 
         stCurMediaInfo.nVtduSendPort = nSendV3Port;
 
@@ -811,9 +806,8 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                 strError = "GBRtpPsOverUdpStream addOneSend failed!";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                mtSendV3Port.lock();
+                std::lock_guard<std::mutex> lock(mtSendV3Port);
                 g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
                 return;
             }
             g_nOutstreamNum++;
@@ -827,25 +821,17 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
         {
             //查找可使用端口
             int nRecvPort = -1;
-            mtRecvPort.lock();
-            if (g_vecRecvPort.size() == 0)
+            int nRet = GetRecvPort(nRecvPort, strError);
+            if (nRet < 0)
             {
                 nStatus = 400;
-                VTDU_LOG_E("g_vecRecvHiPort is NULL");
-                strError = "RecvHiPort is use up";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                mtRecvPort.unlock();
-                mtSendV3Port.lock();
+
+                std::lock_guard<std::mutex> lock(mtSendV3Port);
                 g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
                 return;
             }
-            std::vector<int>::iterator itorRecvHi = g_vecRecvPort.begin();
-            nRecvPort = *itorRecvHi;
-            g_vecRecvPort.erase(itorRecvHi);
-            mtRecvPort.unlock();
-
 
             stCurMediaInfo.nVtduRecvPort = nRecvPort;
 
@@ -855,31 +841,22 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                 nStatus = 400;
                 strError = "New GBRtpPsOverUdpStream object failed!";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
 
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
                 return;
             }
             pStreamHanlde->setCallBack(StreamInfoCallBack, this);
-            int nRet = pStreamHanlde->start(bTrans);
+            nRet = pStreamHanlde->start(bTrans);
             if (nRet < 0)
             {
                 nStatus = 400;
                 strError = "GBRtpPsOverUdpStream start failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
 
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
+
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
                 return;
             }
@@ -892,91 +869,32 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                 strError = "GBRtpPsOverUdpStream start failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
 
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
                 return;
             }
 
-            std::string strHiId = "";
-            std::string strHiRegion = "";
-            std::string strHiIp = "";
-            int nHiPort = -1;
             int nHiRecvPort = -1;
-            std::string strHisipId = "";
+            stHiInfo stCurHiInfo;
+            stCurHiInfo.nTansTaskNum = 10000;
+            stCurHiInfo.strSipId = "";
             //如果 需要转码 从已注册hi 按负载情况获取 hi ip和端口
             if (bTrans)
             {
-                int nCurHiTaskNum = 10000;
-                mtRegHi.lock();
-                if (0 == g_mapRegHiInfo.size())
+                nRet = GetOneHi(stCurHiInfo, strError);
+                if (nRet < 0)
                 {
                     pStreamHanlde->stop();
                     delete pStreamHanlde;
                     nStatus = 400;
-                    VTDU_LOG_E("g_mapRegHiInfo is NULL");
-                    strError = "have no trans module reg";
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                     SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                    mtRegHi.unlock();
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
+                    RecoverPairPort(nSendV3Port, nRecvPort);
+                }
 
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
-                    return;
-                }
-                std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.begin();
-                for (; itorRegHi != g_mapRegHiInfo.end(); ++itorRegHi)
-                {
-                    if (itorRegHi->second.nTansTaskNum == 0)
-                    {
-                        nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
-                        strHiIp = itorRegHi->second.strSipIp;
-                        nHiPort = itorRegHi->second.nSipPort;
-                        strHiId = itorRegHi->second.strSipId;
-                        strHiRegion = itorRegHi->second.strSipRegion;
-                        strHisipId = itorRegHi->first;
-                        break;
-                    }
-                    if (itorRegHi->second.nTansTaskNum < nCurHiTaskNum && itorRegHi->second.nTansTaskNum < itorRegHi->second.nMaxTransTaskNum)
-                    {
-                        nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
-                        strHiIp = itorRegHi->second.strSipIp;
-                        nHiPort = itorRegHi->second.nSipPort;
-                        strHiId = itorRegHi->second.strSipId;
-                        strHiRegion = itorRegHi->second.strSipRegion;
-                        strHisipId = itorRegHi->first;
-                    }
-                }
-                if (strHisipId == "")
-                {
-                    pStreamHanlde->stop();
-                    nStatus = 400;
-                    VTDU_LOG_E("get Hi failed");
-                    strError = "get Hi failed!";
-                    delete pStreamHanlde;
-                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                    SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
-
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
-                    return;
-                }
-                mtRegHi.unlock();
                 //sip协议通知对应hi模块 告知接收端口获取hi模块接收端口， 等待 10秒后如果没有回应 重新选择一个 直接失败 换一个hi重新请求一次)
-                int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, strHiIp, nHiPort);
+                int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
                 if (ret <= 0)
                 {
                     pStreamHanlde->stop();
@@ -985,68 +903,63 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                     SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
 
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
+                    RecoverPairPort(nSendV3Port, nRecvPort);
                     return;
                 }
                 //hi接收端口
-                for (int nWait = 0; nWait < 6; nWait++)
+                for (int nWait = 0; nWait < 60; nWait++)
                 {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    mtGetHirecvPort.lock();
-                    std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
-                    if (itorRecvHi != g_mapGetHirecvPort.end())
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     {
-                        nHiRecvPort = itorRecvHi->second;
-                        g_mapGetHirecvPort.erase(itorRecvHi);
-                        break;
+                        std::lock_guard<std::mutex> lock(mtGetHirecvPort);
+                        std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
+                        if (itorRecvHi != g_mapGetHirecvPort.end())
+                        {
+                            nHiRecvPort = itorRecvHi->second;
+                            g_mapGetHirecvPort.erase(itorRecvHi);
+                            break;
+                        }
                     }
-                    mtGetHirecvPort.unlock();
                 }
                 if (nHiRecvPort == -1)
                 {
                     pStreamHanlde->stop();
                     nStatus = 400;
-                    VTDU_LOG_E("get hi recv port failed, hi info: " << strHiIp << ":" << nHiPort);
+                    VTDU_LOG_E("get hi recv port failed, hi info: " << stCurHiInfo.strSipIp << ":" << stCurHiInfo.nSipPort);
                     strError = "get hi recv port failed";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                     //通知取消任务
-                    m_oCommunicationHi.sendStopTransReq(strPuInfo, strHiIp, nHiPort);
+                    m_oCommunicationHi.sendStopTransReq(strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
                     SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
 
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
+                    RecoverPairPort(nSendV3Port, nRecvPort);
                     return;
                 }
 
-                mtRegHi.lock();
-                g_mapRegHiInfo[strHisipId].nTansTaskNum = nCurHiTaskNum + 1;
-                mtRegHi.unlock();
-                stCurMediaInfo.strVtduRecvIp = strHiIp;
+                {
+                    std::lock_guard<std::mutex> lock(mtRegHi);
+                    g_mapRegHiInfo[stCurHiInfo.strSipId].nTansTaskNum = stCurHiInfo.nTansTaskNum + 1;
+                }
+
+                stCurMediaInfo.strVtduRecvIp = stCurHiInfo.strSipIp;
                 stCurMediaInfo.nVtduRecvPort = nHiRecvPort;
             }
 
             stHiTaskInfo stTask;
-            stTask.strHiSipId = strHiId;
+            stTask.strHiSipId = stCurHiInfo.strSipId;
             stTask.pStream = (void*)pStreamHanlde;
             stTask.enStreamType = Stream_type::UDP_PS;
             stTask.nRecvPort = stCurMediaInfo.nVtduRecvPort;
             stTask.strRecvIp = stCurMediaInfo.strVtduRecvIp;
             stTask.stMedia = stCurMediaInfo;
             stTask.enTaskType = TASK_type::PREVIEW;
-            mtVtduPreviewTask.lock();
-            g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
-            mtVtduPreviewTask.unlock();
+
+            {
+                std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+                g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
+            }
 
             SipUA_RspPreviewOk(pMsgPtr, stCurMediaInfo, nInitialUser);
 
@@ -1104,15 +1017,16 @@ void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
         Stream *pStream = NULL;
         std::string strHiSipId = "";
 
-        mtVtduPreviewTask.lock();
-        std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
-        if (itorTask != g_mapVtduPreviewTaskInfo.end())
         {
-            bExitTask = true;
-            pStream = (Stream *)(itorTask->second.pStream);
-            strHiSipId = itorTask->second.strHiSipId;
+            std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+            std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
+            if (itorTask != g_mapVtduPreviewTaskInfo.end())
+            {
+                bExitTask = true;
+                pStream = (Stream *)(itorTask->second.pStream);
+                strHiSipId = itorTask->second.strHiSipId;
+            }
         }
-        mtVtduPreviewTask.unlock();
 
         if (bExitTask && pStream != NULL)
         {
@@ -1132,16 +1046,13 @@ void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
                 //回收端口
                 if (nCurSendPort != -1)
                 {
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nCurSendPort);
-                    mtSendV3Port.unlock();
+                    RecoverPort(PORT_type::SEND, nCurSendPort);
                 }
 
                 int nRecvPort = -1;
                 pStream->getRecvPort(nRecvPort);
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+
+                RecoverPort(PORT_type::RECEIVE, nRecvPort);
                 delete pStream;
                 pStream = NULL;
 
@@ -1151,24 +1062,25 @@ void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
                     std::string strHiId = "";
                     std::string strHiIp = "";
                     int nHiPort = 0;
-                    mtRegHi.lock();
-                    std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
-                    if (itorRegHi == g_mapRegHiInfo.end())
+
                     {
-                        mtRegHi.unlock();
-                        nStatus = 400;
-                        strError = "get msg body failed";
-                        iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                        SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                        return;
+                        std::lock_guard<std::mutex> lock(mtRegHi);
+                        std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
+                        if (itorRegHi == g_mapRegHiInfo.end())
+                        {
+                            nStatus = 400;
+                            strError = "get msg body failed";
+                            iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
+                            SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
+                            return;
+                        }
+                        else
+                        {
+                            strHiId = itorRegHi->second.strSipId;
+                            strHiIp = itorRegHi->second.strSipIp;
+                            nHiPort = itorRegHi->second.nSipPort;
+                        }
                     }
-                    else
-                    {
-                        strHiId = itorRegHi->second.strSipId;
-                        strHiIp = itorRegHi->second.strSipIp;
-                        nHiPort = itorRegHi->second.nSipPort;
-                    }
-                    mtRegHi.unlock();
 
                     //改成socket
                     m_oCommunicationHi.sendStopTransReq(strPuInfo, strHiIp, nHiPort);
@@ -1181,9 +1093,7 @@ void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
                 //回收端口
                 if (nCurSendPort != -1)
                 {
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nCurSendPort);
-                    mtSendV3Port.unlock();
+                    RecoverPort(PORT_type::SEND, nCurSendPort);
                 }
                 g_nOutstreamNum--;
             }
@@ -1232,6 +1142,7 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         //非国标的私有流不转码
         if (stCurMediaInfo.nPuProtocol != 1)
         {
+            VTDU_LOG_I("非国标的私有流不转码 nPuProtocol: " << stCurMediaInfo.nPuProtocol);
             stCurMediaInfo.bTrans = false;
         }
         bool bTrans = stCurMediaInfo.bTrans;
@@ -1246,44 +1157,30 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
         int nRecvPort = -1;
         int nSendV3Port = -1;
 
-        mtSendV3Port.lock();
-        if (g_vecSendV3Port.size() == 0)
+        //获取发送端口
+        int nRet = GetSendPort(nSendV3Port, strError);
+        if (nRet < 0)
         {
             nStatus = 400;
-            VTDU_LOG_E("g_vecSendV3Port is NULL");
-            strError = "SendV3Port is use up";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-            mtSendV3Port.unlock();
             return;
         }
-        std::vector<int>::iterator itorSendV3 = g_vecSendV3Port.begin();
-        nSendV3Port = *itorSendV3;
-        g_vecSendV3Port.erase(itorSendV3);
-        mtSendV3Port.unlock();
 
-        mtRecvPort.lock();
-        if (g_vecRecvPort.size() == 0)
+        //获取接收端口
+        nRet = GetRecvPort(nRecvPort, strError);
+        if (nRet < 0)
         {
             nStatus = 400;
-            VTDU_LOG_E("g_vecRecvHiPort is NULL");
-            strError = "RecvHiPort is use up";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-            mtRecvPort.unlock();
-            mtSendV3Port.lock();
+
+            std::lock_guard<std::mutex> lock(mtSendV3Port);
             g_vecSendV3Port.push_back(nSendV3Port);
-            mtSendV3Port.unlock();
             return;
         }
-        std::vector<int>::iterator itorRecvHi = g_vecRecvPort.begin();
-        nRecvPort = *itorRecvHi;
-        g_vecRecvPort.erase(itorRecvHi);
-        mtRecvPort.unlock();
-
 
         stCurMediaInfo.nVtduRecvPort = nRecvPort;
-
         stCurMediaInfo.nVtduSendPort = nSendV3Port;
 
         //启动
@@ -1293,31 +1190,20 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
             nStatus = 400;
             strError = "New GBRtpPsOverUdpStream object failed!";
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-            mtSendV3Port.lock();
-            g_vecSendV3Port.push_back(nSendV3Port);
-            mtSendV3Port.unlock();
 
-            mtRecvPort.lock();
-            g_vecRecvPort.push_back(nRecvPort);
-            mtRecvPort.unlock();
+            RecoverPairPort(nSendV3Port, nRecvPort);
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
             return;
         }
         pStreamHanlde->setCallBack(StreamInfoCallBack, this);
-        int nRet = pStreamHanlde->start(bTrans);
+        nRet = pStreamHanlde->start(bTrans);
         if (nRet < 0)
         {
             nStatus = 400;
             strError = "GBRtpPsOverUdpStream start failed!";
             delete pStreamHanlde;
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-            mtSendV3Port.lock();
-            g_vecSendV3Port.push_back(nSendV3Port);
-            mtSendV3Port.unlock();
-
-            mtRecvPort.lock();
-            g_vecRecvPort.push_back(nRecvPort);
-            mtRecvPort.unlock();
+            RecoverPairPort(nSendV3Port, nRecvPort);
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
             return;
         }
@@ -1330,90 +1216,31 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
             strError = "GBRtpPsOverUdpStream start failed!";
             delete pStreamHanlde;
             iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-            mtSendV3Port.lock();
-            g_vecSendV3Port.push_back(nSendV3Port);
-            mtSendV3Port.unlock();
-
-            mtRecvPort.lock();
-            g_vecRecvPort.push_back(nRecvPort);
-            mtRecvPort.unlock();
+            RecoverPairPort(nSendV3Port, nRecvPort);
             SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
             return;
         }
 
-        std::string strHiId = "";
-        std::string strHiRegion = "";
-        std::string strHiIp = "";
-        int nHiPort = -1;
         int nHiRecvPort = -1;
-        std::string strHisipId = "";
+        stHiInfo stCurHiInfo;
+        stCurHiInfo.nTansTaskNum = 10000;
+        stCurHiInfo.strSipId = "";
         //如果 需要转码 从已注册hi 按负载情况获取 hi ip和端口
         if (bTrans)
         {
-            int nCurHiTaskNum = 10000;
-            mtRegHi.lock();
-            if (0 == g_mapRegHiInfo.size())
-            {
-                nStatus = 400;
-                VTDU_LOG_E("have no trans module reg");
-                strError = "have no trans module reg";
-                iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                mtRegHi.unlock();
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
-
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
-                return;
-            }
-            std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.begin();
-            for (; itorRegHi != g_mapRegHiInfo.end(); ++itorRegHi)
-            {
-                if (itorRegHi->second.nTansTaskNum == 0)
-                {
-                    nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
-                    strHiIp = itorRegHi->second.strSipIp;
-                    nHiPort = itorRegHi->second.nSipPort;
-                    strHiId = itorRegHi->second.strSipId;
-                    strHiRegion = itorRegHi->second.strSipRegion;
-                    strHisipId = itorRegHi->first;
-                    break;
-                }
-                if (itorRegHi->second.nTansTaskNum < nCurHiTaskNum && itorRegHi->second.nTansTaskNum < itorRegHi->second.nMaxTransTaskNum)
-                {
-                    nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
-                    strHiIp = itorRegHi->second.strSipIp;
-                    nHiPort = itorRegHi->second.nSipPort;
-                    strHiId = itorRegHi->second.strSipId;
-                    strHiRegion = itorRegHi->second.strSipRegion;
-                    strHisipId = itorRegHi->first;
-                }
-            }
-            if (strHisipId == "")
+            nRet = GetOneHi(stCurHiInfo, strError);
+            if (nRet < 0)
             {
                 pStreamHanlde->stop();
-                nStatus = 400;
-                VTDU_LOG_E("get Hi failed");
-                strError = "get Hi failed!";
                 delete pStreamHanlde;
+                nStatus = 400;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
-
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
-                return;
+                RecoverPairPort(nSendV3Port, nRecvPort);
             }
-            mtRegHi.unlock();
 
             //sip协议通知对应hi模块 告知接收端口获取hi模块接收端口， 等待 3秒后如果没有回应 重新选择一个 直接失败 换一个hi重新请求一次)
-            int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, strHiIp, nHiPort);
+            int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
             if (ret <= 0)
             {
                 pStreamHanlde->stop();
@@ -1422,67 +1249,61 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
-
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
                 return;
             }
+
             //hi接收端口
-            for (int nWait = 0; nWait < 6; nWait++)
+            for (int nWait = 0; nWait < 60; nWait++)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                mtGetHirecvPort.lock();
-                std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
-                if (itorRecvHi != g_mapGetHirecvPort.end())
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 {
-                    nHiRecvPort = itorRecvHi->second;
-                    g_mapGetHirecvPort.erase(itorRecvHi);
-                    break;
+                    std::lock_guard<std::mutex> lock(mtGetHirecvPort);
+                    std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
+                    if (itorRecvHi != g_mapGetHirecvPort.end())
+                    {
+                        nHiRecvPort = itorRecvHi->second;
+                        g_mapGetHirecvPort.erase(itorRecvHi);
+                        break;
+                    }
                 }
-                mtGetHirecvPort.unlock();
             }
             if (nHiRecvPort == -1)
             {
                 pStreamHanlde->stop();
                 nStatus = 400;
-                VTDU_LOG_E("get hi recv port failed, Hi info: " << strHiIp << ":" << nHiPort);
+                VTDU_LOG_E("get hi recv port failed, Hi info: " << stCurHiInfo.strSipIp << ":" << stCurHiInfo.nSipPort);
                 strError = "get hi recv port failed";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                 //通知取消任务
-                m_oCommunicationHi.sendStopTransReq(strPuInfo, strHiIp, nHiPort);
+                m_oCommunicationHi.sendStopTransReq(strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
 
                 SipUA_AnswerInfo(pMsgPtr, nStatus, pszBody, iBodyLen);
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
-
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
                 return;
             }
 
-            mtRegHi.lock();
-            g_mapRegHiInfo[strHisipId].nTansTaskNum = nCurHiTaskNum + 1;
-            mtRegHi.unlock();
-            stCurMediaInfo.strVtduRecvIp = strHiIp;
+            {
+                std::lock_guard<std::mutex> lock(mtRegHi);
+                g_mapRegHiInfo[stCurHiInfo.strSipId].nTansTaskNum = stCurHiInfo.nTansTaskNum + 1;
+            }
+
+            stCurMediaInfo.strVtduRecvIp = stCurHiInfo.strSipIp;
             stCurMediaInfo.nVtduRecvPort = nHiRecvPort;
         }
 
         stHiTaskInfo stTask;
-        stTask.strHiSipId = strHiId;
+        stTask.strHiSipId = stCurHiInfo.strSipId;
         stTask.pStream = pStreamHanlde;
         stTask.enStreamType = Stream_type::UDP_PS;
         stTask.enTaskType = TASK_type::PLAYBACK;
         stTask.stMedia = stCurMediaInfo;
-        mtVtduPreviewTask.lock();
-        g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
-        mtVtduPreviewTask.unlock();
+
+        {
+            std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+            g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
+        }
 
         SipUA_RspPlayBackOk(pMsgPtr, stCurMediaInfo);
 
@@ -1537,15 +1358,17 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
         Stream *pStream = NULL;
         std::string strHiSipId = "";
 
-        mtVtduPreviewTask.lock();
-        std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
-        if (itorTask != g_mapVtduPreviewTaskInfo.end())
         {
-            bExitTask = true;
-            pStream = (Stream *)(itorTask->second.pStream);
-            strHiSipId = itorTask->second.strHiSipId;
+            std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+            std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
+            if (itorTask != g_mapVtduPreviewTaskInfo.end())
+            {
+                bExitTask = true;
+                pStream = (Stream *)(itorTask->second.pStream);
+                strHiSipId = itorTask->second.strHiSipId;
+            }
         }
-        mtVtduPreviewTask.unlock();
+
 
         if (bExitTask && pStream != NULL)
         {
@@ -1564,16 +1387,13 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
                 //回收端口
                 if (nCurSendPort != -1)
                 {
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nCurSendPort);
-                    mtSendV3Port.unlock();
+                    RecoverPort(PORT_type::SEND, nCurSendPort);
                 }
 
                 int nRecvPort = -1;
                 pStream->getRecvPort(nRecvPort);
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+
+                RecoverPort(PORT_type::RECEIVE, nRecvPort);
                 delete pStream;
                 pStream = NULL;
                 if (bTrans)
@@ -1582,19 +1402,21 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
                     std::string strHiId = "";
                     std::string strHiIp = "";
                     int nHiPort = 0;
-                    mtRegHi.lock();
-                    std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
-                    if (itorRegHi == g_mapRegHiInfo.end())
                     {
-                        VTDU_LOG_E("sipServerHandleV3FileStop,cannot find hi info, HiSipId:: " << strHiSipId);
+                        std::lock_guard<std::mutex> lock(mtRegHi);
+                        std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.find(strHiSipId);
+                        if (itorRegHi == g_mapRegHiInfo.end())
+                        {
+                            VTDU_LOG_E("sipServerHandleV3FileStop,cannot find hi info, HiSipId:: " << strHiSipId);
+                        }
+                        else
+                        {
+                            strHiId = itorRegHi->second.strSipId;
+                            strHiIp = itorRegHi->second.strSipIp;
+                            nHiPort = itorRegHi->second.nSipPort;
+                        }
                     }
-                    else
-                    {
-                        strHiId = itorRegHi->second.strSipId;
-                        strHiIp = itorRegHi->second.strSipIp;
-                        nHiPort = itorRegHi->second.nSipPort;
-                    }
-                    mtRegHi.unlock();
+
                     if (strHiId != "" && strHiIp != "" && nHiPort != 0)
                     {
                         m_oCommunicationHi.sendStopTransReq(strPuInfo, strHiIp, nHiPort);
@@ -1607,9 +1429,7 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
             {
                 if (nCurSendPort != -1)
                 {
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nCurSendPort);
-                    mtSendV3Port.unlock();
+                    RecoverPort(PORT_type::SEND, nCurSendPort);
                 }
                 g_nOutstreamNum--;
             }
@@ -1617,6 +1437,148 @@ void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
 
         SipUA_RspPlayBackStopOk(pMsgPtr, stCurMediaInfo);
     }
+}
+
+/**************************************************************************
+* name          : RecoverPairPort
+* description   : 回收一对收发端口
+* input         : nPortSend  发送端口
+                : nPortRecv 接收
+* output        : NA
+* return        : NA
+* remark        : NA
+**************************************************************************/
+void VtduServer::RecoverPairPort(int nPortSend, int nPortRecv)
+{
+
+    {
+        std::lock_guard<std::mutex> lock(mtSendV3Port);
+        g_vecSendV3Port.push_back(nPortSend);
+    }
+    
+    std::lock_guard<std::mutex> lock(mtRecvPort);
+    g_vecRecvPort.push_back(nPortRecv);
+}
+
+/**************************************************************************
+* name          : RecoverPort
+* description   : 回收端口
+* input         : enPortType  端口类型
+                : nPort 端口
+* output        : NA
+* return        : NA
+* remark        : NA
+**************************************************************************/
+void VtduServer::RecoverPort(PORT_type enPortType, int nPort)
+{
+    if (enPortType == PORT_type::SEND)
+    {
+        std::lock_guard<std::mutex> lock(mtSendV3Port);
+        g_vecSendV3Port.push_back(nPort);
+    }
+    else
+    {
+        std::lock_guard<std::mutex> lock(mtRecvPort);
+        g_vecRecvPort.push_back(nPort);
+    }
+
+}
+
+/**************************************************************************
+* name          : GetOneHi
+* description   : 获取一个已注册的hi模块
+* input         : NA
+* output        : stCurHiInfo hi信息
+* return        : 0正常 小于0 异常
+* remark        : NA
+**************************************************************************/
+int VtduServer::GetOneHi(stHiInfo &stCurHiInfo, std::string &strError)
+{
+    std::lock_guard<std::mutex> lock(mtRegHi);
+    if (0 == g_mapRegHiInfo.size())
+    {
+        VTDU_LOG_E("have no trans module reg");
+        strError = "have no trans module reg";
+        return -1;
+    }
+    std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.begin();
+    for (; itorRegHi != g_mapRegHiInfo.end(); ++itorRegHi)
+    {
+        if (itorRegHi->second.nTansTaskNum == 0)
+        {
+            stCurHiInfo.nTansTaskNum = itorRegHi->second.nTansTaskNum;
+            stCurHiInfo.strSipIp = itorRegHi->second.strSipIp;
+            stCurHiInfo.nSipPort = itorRegHi->second.nSipPort;
+            stCurHiInfo.strSipId = itorRegHi->second.strSipId;
+            stCurHiInfo.strSipRegion = itorRegHi->second.strSipRegion;
+            break;
+        }
+        if (itorRegHi->second.nTansTaskNum < stCurHiInfo.nTansTaskNum && itorRegHi->second.nTansTaskNum < itorRegHi->second.nMaxTransTaskNum)
+        {
+            stCurHiInfo.nTansTaskNum = itorRegHi->second.nTansTaskNum;
+            stCurHiInfo.strSipIp = itorRegHi->second.strSipIp;
+            stCurHiInfo.nSipPort = itorRegHi->second.nSipPort;
+            stCurHiInfo.strSipId = itorRegHi->second.strSipId;
+            stCurHiInfo.strSipRegion = itorRegHi->second.strSipRegion;
+        }
+    }
+    if (stCurHiInfo.strSipId == "")
+    {
+        VTDU_LOG_E("get Hi failed");
+        strError = "get Hi failed!";
+        return -1;
+    }
+    return 0;
+}
+
+/**************************************************************************
+* name          : GetSendPort
+* description   : 获取一个vtdu发流端口
+* input         : NA
+* output        : nSendV3Port 发流端口
+                  strError 错误信息
+* return        : 0正常 小于0 异常
+* remark        : NA
+**************************************************************************/
+int VtduServer::GetSendPort(int &nSendV3Port, std::string &strError)
+{
+    std::lock_guard<std::mutex> lock(mtSendV3Port);
+    if (g_vecSendV3Port.size() == 0)
+    {
+        VTDU_LOG_E("g_vecSendV3Port is NULL");
+        strError = "SendV3Port is use up";
+        return -1;
+    }
+
+    std::vector<int>::iterator itorSendV3 = g_vecSendV3Port.begin();
+    nSendV3Port = *itorSendV3;
+    g_vecSendV3Port.erase(itorSendV3);
+
+    return 0;
+}
+
+/**************************************************************************
+* name          : GetRecvPort
+* description   : 获取一个vtdu收流端口
+* input         : NA
+* output        : nRecvV3Port 收流端口
+                  strError 错误信息
+* return        : 0正常 小于0 异常
+* remark        : NA
+**************************************************************************/
+int VtduServer::GetRecvPort(int &nRecvV3Port, std::string &strError)
+{
+    std::lock_guard<std::mutex> lock(mtRecvPort);
+    if (g_vecRecvPort.size() == 0)
+    {
+        VTDU_LOG_E("g_vecRecvHiPort is NULL");
+        strError = "RecvHiPort is use up";
+        return -1;
+    }
+    std::vector<int>::iterator itorRecvHi = g_vecRecvPort.begin();
+    nRecvV3Port = *itorRecvHi;
+    g_vecRecvPort.erase(itorRecvHi);
+    return 0;
 }
 
 /**************************************************************************
@@ -1652,9 +1614,11 @@ void VtduServer::HandleHiRegister(char *pMsgPtr, char* szSendBuff, int* nSendBuf
         stCurHi.nHeartBeat = _time64(NULL);
         stCurHi.nTansTaskNum = 0;
 
-        mtRegHi.lock();
-        g_mapRegHiInfo[stCurHi.strSipId] = stCurHi;
-        mtRegHi.unlock();
+        {
+            std::lock_guard<std::mutex> lock(mtRegHi);
+            g_mapRegHiInfo[stCurHi.strSipId] = stCurHi;
+        }
+
         *nSendBufLen = sprintf(szSendBuff,
             "<VTDU_HEADER>\r\n"
             "<MessageType>MSG_HI_REG_RSP</MessageType>\r\n"
@@ -1702,23 +1666,24 @@ void VtduServer::HandleHiHeartBeat(char *pMsgPtr, char* szSendBuff, int* nSendBu
         int nRet = m_oXmlParse.ParseXmlHiHeartBeat(pMsgPtr, stCurHi, bFindSipInfo);
 
         __time64_t nCurTime = _time64(NULL);
-        mtRegHi.lock();
-        std::map<std::string, stHiInfo>::iterator iotr = g_mapRegHiInfo.find(stCurHi.strSipId);
-        if (iotr != g_mapRegHiInfo.end())
         {
-            iotr->second.nHeartBeat = nCurTime;
-        }
-        else//如果没注册就有心跳，可能是vtdu掉线后重新上线收到的hi模块心跳，直接放入注册列表 清空负载情况 通知hi 销毁资源 
-        {
-            if (bFindSipInfo)
+            std::lock_guard<std::mutex> lock(mtRegHi);
+            std::map<std::string, stHiInfo>::iterator iotr = g_mapRegHiInfo.find(stCurHi.strSipId);
+            if (iotr != g_mapRegHiInfo.end())
             {
-                bNeedReconnect = true;
-                stCurHi.nHeartBeat = nCurTime;
-                stCurHi.nTansTaskNum = 0;
-                g_mapRegHiInfo[stCurHi.strSipId] = stCurHi;
+                iotr->second.nHeartBeat = nCurTime;
+            }
+            else//如果没注册就有心跳，可能是vtdu掉线后重新上线收到的hi模块心跳，直接放入注册列表 清空负载情况 通知hi 销毁资源 
+            {
+                if (bFindSipInfo)
+                {
+                    bNeedReconnect = true;
+                    stCurHi.nHeartBeat = nCurTime;
+                    stCurHi.nTansTaskNum = 0;
+                    g_mapRegHiInfo[stCurHi.strSipId] = stCurHi;
+                }
             }
         }
-        mtRegHi.unlock();
 
         if (bNeedReconnect)
         {
@@ -1750,9 +1715,8 @@ void VtduServer::HandleHiTansRsp(char *pMsgPtr, char* szSendBuff, int* nSendBufL
         {
             return;
         }
-        mtGetHirecvPort.lock();
+        std::lock_guard<std::mutex> lock(mtGetHirecvPort);
         g_mapGetHirecvPort[strHiTaskId] = nHiRecvPort;
-        mtGetHirecvPort.unlock();
 
         return;
     }
@@ -1784,37 +1748,40 @@ void VtduServer::HandleHiCutout(char *pMsgPtr, char* szSendBuff, int* nSendBufLe
         std::string strHiSipId = "";
         stMediaInfo stCurMediaInfo;
         TASK_type enTaskType = TASK_type::PLAYBACK;
-        mtVtduPreviewTask.lock();
-        std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strHiTaskId);
-        if (itorTask != g_mapVtduPreviewTaskInfo.end())
+
         {
-            pStream = (Stream*)(itorTask->second.pStream);
-            stCurMediaInfo = itorTask->second.stMedia;
-            enTaskType = itorTask->second.enTaskType;
-            g_mapVtduPreviewTaskInfo.erase(itorTask);
+            std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+            std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strHiTaskId);
+            if (itorTask != g_mapVtduPreviewTaskInfo.end())
+            {
+                pStream = (Stream*)(itorTask->second.pStream);
+                stCurMediaInfo = itorTask->second.stMedia;
+                enTaskType = itorTask->second.enTaskType;
+                g_mapVtduPreviewTaskInfo.erase(itorTask);
+            }
         }
-        mtVtduPreviewTask.unlock();
+
         if (NULL != pStream)
         {
             pStream->stop();
             //回收所有发送端口
             std::vector<int> vecSendPort;
             pStream->getSendPort(vecSendPort);
-            mtSendV3Port.lock();
-            for (std::vector<int>::iterator itorvecSendPort = vecSendPort.begin(); itorvecSendPort != vecSendPort.end(); ++itorvecSendPort)
+
             {
-                g_vecSendV3Port.push_back(*itorvecSendPort);
+                std::lock_guard<std::mutex> lock(mtSendV3Port);
+                for (std::vector<int>::iterator itorvecSendPort = vecSendPort.begin(); itorvecSendPort != vecSendPort.end(); ++itorvecSendPort)
+                {
+                    g_vecSendV3Port.push_back(*itorvecSendPort);
+                }
             }
-            mtSendV3Port.unlock();
 
             //回收接收端口
             int nRecvPort = -1;
             pStream->getRecvPort(nRecvPort);
             if (-1 != nRecvPort)
             {
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPort(PORT_type::RECEIVE, nRecvPort);
             }
 
             //更新输入输出流路数
@@ -1874,34 +1841,28 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
         int nExitTaskRecvPort = 0;
         std::string strExitTaskRecvIp = "";
 
-        mtVtduPreviewTask.lock();
-        std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
-        if (itorTask != g_mapVtduPreviewTaskInfo.end())
         {
-            bExitTask = true;
-            poStream = (Stream *)itorTask->second.pStream;
-            nExitTaskRecvPort = itorTask->second.nRecvPort;
-            strExitTaskRecvIp = itorTask->second.strRecvIp;
-            poStream->getOutstreamNum(nInitialUser);
+            std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+            std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.find(strPuInfo);
+            if (itorTask != g_mapVtduPreviewTaskInfo.end())
+            {
+                bExitTask = true;
+                poStream = (Stream *)itorTask->second.pStream;
+                nExitTaskRecvPort = itorTask->second.nRecvPort;
+                strExitTaskRecvIp = itorTask->second.strRecvIp;
+                poStream->getOutstreamNum(nInitialUser);
+            }
         }
-        mtVtduPreviewTask.unlock();
-
 
         //查找可使用端口
         int nSendV3Port = -1;
 
-        mtSendV3Port.lock();
-        if (g_vecSendV3Port.size() == 0)
+        //获取发送端口
+        int nRet = GetSendPort(nSendV3Port, strError);
+        if (nRet < 0)
         {
-            nStatus = 400;
-            VTDU_LOG_E("g_vecSendV3Port is NULL");
-            mtSendV3Port.unlock();
             return;
         }
-        std::vector<int>::iterator itorSendV3 = g_vecSendV3Port.begin();
-        nSendV3Port = *itorSendV3;
-        g_vecSendV3Port.erase(itorSendV3);
-        mtSendV3Port.unlock();
 
         stCurMediaInfo.nVtduSendPort = nSendV3Port;
 
@@ -1912,9 +1873,7 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
             if (0 > nRet)
             {
                 nStatus = 400;
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
+                RecoverPort(PORT_type::SEND, nSendV3Port);
                 return;
             }
             g_nOutstreamNum++;
@@ -1927,22 +1886,15 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
         {
             //查找可使用端口
             int nRecvPort = -1;
-            mtRecvPort.lock();
-            if (g_vecRecvPort.size() == 0)
+
+            //获取接收端口
+            int nRet = GetRecvPort(nRecvPort, strError);
+            if (nRet < 0)
             {
-                nStatus = 400;
-                VTDU_LOG_E("g_vecRecvHiPort is NULL");
-                mtRecvPort.unlock();
-                mtSendV3Port.lock();
+                std::lock_guard<std::mutex> lock(mtSendV3Port);
                 g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
                 return;
             }
-            std::vector<int>::iterator itorRecvHi = g_vecRecvPort.begin();
-            nRecvPort = *itorRecvHi;
-            g_vecRecvPort.erase(itorRecvHi);
-            mtRecvPort.unlock();
-
 
             stCurMediaInfo.nVtduRecvPort = nRecvPort;
 
@@ -1952,30 +1904,19 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
                 nStatus = 400;
                 strError = "New GBRtpPsOverUdpStream object failed!";
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
 
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
                 return;
             }
             pStreamHanlde->setCallBack(StreamInfoCallBack, this);
-            int nRet = pStreamHanlde->start(bTrans);
+            nRet = pStreamHanlde->start(bTrans);
             if (nRet < 0)
             {
                 nStatus = 400;
                 strError = "GBRtpPsOverUdpStream start failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
-
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
                 return;
             }
 
@@ -1987,88 +1928,27 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
                 strError = "GBRtpPsOverUdpStream start failed!";
                 delete pStreamHanlde;
                 iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                mtSendV3Port.lock();
-                g_vecSendV3Port.push_back(nSendV3Port);
-                mtSendV3Port.unlock();
-
-                mtRecvPort.lock();
-                g_vecRecvPort.push_back(nRecvPort);
-                mtRecvPort.unlock();
+                RecoverPairPort(nSendV3Port, nRecvPort);
                 return;
             }
 
-            std::string strHiId = "";
-            std::string strHiRegion = "";
-            std::string strHiIp = "";
-            int nHiPort = -1;
             int nHiRecvPort = -1;
-            std::string strHisipId = "";
+            stHiInfo stCurHiInfo;
+            stCurHiInfo.nTansTaskNum = 10000;
+            stCurHiInfo.strSipId = "";
             //如果 需要转码 从已注册hi 按负载情况获取 hi ip和端口
             if (bTrans)
             {
-                int nCurHiTaskNum = 10000;
-                mtRegHi.lock();
-                if (0 == g_mapRegHiInfo.size())
+                nRet = GetOneHi(stCurHiInfo, strError);
+                if (nRet < 0)
                 {
                     pStreamHanlde->stop();
                     delete pStreamHanlde;
-                    nStatus = 400;
-                    VTDU_LOG_E("g_mapRegHiInfo is NULL");
-                    strError = "have no trans module reg";
-                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                    mtRegHi.unlock();
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
+                    RecoverPairPort(nSendV3Port, nRecvPort);
+                }
 
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
-                    return;
-                }
-                std::map<std::string, stHiInfo>::iterator itorRegHi = g_mapRegHiInfo.begin();
-                for (; itorRegHi != g_mapRegHiInfo.end(); ++itorRegHi)
-                {
-                    if (itorRegHi->second.nTansTaskNum == 0)
-                    {
-                        nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
-                        strHiIp = itorRegHi->second.strSipIp;
-                        nHiPort = itorRegHi->second.nSipPort;
-                        strHiId = itorRegHi->second.strSipId;
-                        strHiRegion = itorRegHi->second.strSipRegion;
-                        strHisipId = itorRegHi->first;
-                        break;
-                    }
-                    if (itorRegHi->second.nTansTaskNum < nCurHiTaskNum && itorRegHi->second.nTansTaskNum < itorRegHi->second.nMaxTransTaskNum)
-                    {
-                        nCurHiTaskNum = itorRegHi->second.nTansTaskNum;
-                        strHiIp = itorRegHi->second.strSipIp;
-                        nHiPort = itorRegHi->second.nSipPort;
-                        strHiId = itorRegHi->second.strSipId;
-                        strHiRegion = itorRegHi->second.strSipRegion;
-                        strHisipId = itorRegHi->first;
-                    }
-                }
-                if (strHisipId == "")
-                {
-                    pStreamHanlde->stop();
-                    nStatus = 400;
-                    VTDU_LOG_E("get Hi failed");
-                    strError = "get Hi failed!";
-                    delete pStreamHanlde;
-                    iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
-
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
-                    return;
-                }
-                mtRegHi.unlock();
                 //sip协议通知对应hi模块 告知接收端口获取hi模块接收端口， 等待 10秒后如果没有回应 重新选择一个 直接失败 换一个hi重新请求一次)
-                int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, strHiIp, nHiPort);
+                int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
                 if (ret <= 0)
                 {
                     pStreamHanlde->stop();
@@ -2076,68 +1956,59 @@ void VtduServer::sipServerHandleV3TransReadyTest(stMediaInfo &stCurMediaInfo)
                     strError = "send task to hi failed!";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
-
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
+                    RecoverPairPort(nSendV3Port, nRecvPort);
                     return;
                 }
                 //hi接收端口
-                for (int nWait = 0; nWait < 6; nWait++)
+                for (int nWait = 0; nWait < 60; nWait++)
                 {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    mtGetHirecvPort.lock();
-                    std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
-                    if (itorRecvHi != g_mapGetHirecvPort.end())
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     {
-                        nHiRecvPort = itorRecvHi->second;
-                        g_mapGetHirecvPort.erase(itorRecvHi);
-                        mtGetHirecvPort.unlock();
-                        break;
+                        std::lock_guard<std::mutex> lock(mtGetHirecvPort);
+                        std::map<std::string, int>::iterator itorRecvHi = g_mapGetHirecvPort.find(strPuInfo);
+                        if (itorRecvHi != g_mapGetHirecvPort.end())
+                        {
+                            nHiRecvPort = itorRecvHi->second;
+                            g_mapGetHirecvPort.erase(itorRecvHi);
+                            break;
+                        }
                     }
-                    mtGetHirecvPort.unlock();
                 }
                 if (nHiRecvPort == -1)
                 {
                     pStreamHanlde->stop();
                     nStatus = 400;
-                    VTDU_LOG_E("get hi recv port failed, hi info: " << strHiIp << ":" << nHiPort);
+                    VTDU_LOG_E("get hi recv port failed, hi info: " << stCurHiInfo.strSipIp << ":" << stCurHiInfo.nSipPort);
                     strError = "get hi recv port failed";
                     delete pStreamHanlde;
                     iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
                     //通知取消任务
-                    m_oCommunicationHi.sendStopTransReq(strPuInfo, strHiIp, nHiPort);
-                    mtSendV3Port.lock();
-                    g_vecSendV3Port.push_back(nSendV3Port);
-                    mtSendV3Port.unlock();
-
-                    mtRecvPort.lock();
-                    g_vecRecvPort.push_back(nRecvPort);
-                    mtRecvPort.unlock();
+                    m_oCommunicationHi.sendStopTransReq(strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
+                    RecoverPairPort(nSendV3Port, nRecvPort);
                     return;
                 }
 
-                mtRegHi.lock();
-                g_mapRegHiInfo[strHisipId].nTansTaskNum = nCurHiTaskNum + 1;
-                mtRegHi.unlock();
-                stCurMediaInfo.strVtduRecvIp = strHiIp;
+                {
+                    std::lock_guard<std::mutex> lock(mtRegHi);
+                    g_mapRegHiInfo[stCurHiInfo.strSipId].nTansTaskNum = stCurHiInfo.nTansTaskNum + 1;
+                }
+                stCurMediaInfo.strVtduRecvIp = stCurHiInfo.strSipIp;
                 stCurMediaInfo.nVtduRecvPort = nHiRecvPort;
             }
 
             stHiTaskInfo stTask;
-            stTask.strHiSipId = strHiId;
+            stTask.strHiSipId = stCurHiInfo.strSipId;
             stTask.pStream = (void*)pStreamHanlde;
             stTask.enStreamType = Stream_type::UDP_PS;
             stTask.nRecvPort = stCurMediaInfo.nVtduRecvPort;
             stTask.strRecvIp = stCurMediaInfo.strVtduRecvIp;
             stTask.stMedia = stCurMediaInfo;
             stTask.enTaskType = TASK_type::PREVIEW;
-            mtVtduPreviewTask.lock();
-            g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
-            mtVtduPreviewTask.unlock();
+
+            {
+                std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
+                g_mapVtduPreviewTaskInfo[strPuInfo] = stTask;
+            }
 
             g_nInstreamNum++;
             g_nOutstreamNum++;

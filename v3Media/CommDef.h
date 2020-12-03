@@ -51,6 +51,13 @@ enum TASK_type
     PLAYBACK  //回放
 };
 
+//端口类型
+enum PORT_type
+{
+    SEND,  //发送端口
+    RECEIVE  //接收端口
+};
+
 //断流模块类型
 enum CUTOFF_type
 {
@@ -186,6 +193,16 @@ typedef struct HiInfo
     int nTansTaskNum;
     int nMaxTransTaskNum;
     long long nHeartBeat;
+    HiInfo::HiInfo()
+    {
+        strSipId = "";
+        strSipRegion = "";
+        strSipIp = "";
+        nSipPort = -1;
+        nTansTaskNum = 10000;
+        nMaxTransTaskNum = 10000;
+        nHeartBeat = 0;
+    }
 }stHiInfo;
 
 //转码任务信息
@@ -228,3 +245,5 @@ long long Comm_GetMilliSecFrom1970();
 
 /*获取1970年至当前时间的秒数*/
 long long Comm_GetSecFrom1970();
+
+

@@ -279,6 +279,61 @@ public:
     **************************************************************************/
     void sipServerHandleV3FileStop(void *pMsgPtr);
 
+    /**************************************************************************
+    * name          : RecoverPairPort
+    * description   : 回收一对收发端口
+    * input         : nPortSend  发送端口
+                    : nPortRecv 接收
+    * output        : NA
+    * return        : NA
+    * remark        : NA
+    **************************************************************************/
+    void RecoverPairPort(int nPortSend, int nPortRecv);
+
+    /**************************************************************************
+    * name          : RecoverPort
+    * description   : 回收端口
+    * input         : enPortType  端口类型
+                    : nPort 端口
+    * output        : NA
+    * return        : NA
+    * remark        : NA
+    **************************************************************************/
+    void RecoverPort(PORT_type enPortType, int nPort);
+
+    /**************************************************************************
+    * name          : GetOneHi
+    * description   : 获取一个已注册的hi模块
+    * input         : NA
+    * output        : stCurHiInfo hi信息
+                      strError 错误信息
+    * return        : 0正常 小于0 异常
+    * remark        : NA
+    **************************************************************************/
+    int GetOneHi(stHiInfo &stCurHiInfo, std::string &strError);
+
+    /**************************************************************************
+    * name          : GetSendPort
+    * description   : 获取一个vtdu发流端口
+    * input         : NA
+    * output        : nSendV3Port 发流端口
+                      strError 错误信息
+    * return        : 0正常 小于0 异常
+    * remark        : NA
+    **************************************************************************/
+    int GetSendPort(int &nSendV3Port, std::string &strError);
+
+    /**************************************************************************
+    * name          : GetRecvPort
+    * description   : 获取一个vtdu收流端口
+    * input         : NA
+    * output        : nRecvV3Port 收流端口
+                      strError 错误信息
+    * return        : 0正常 小于0 异常
+    * remark        : NA
+    **************************************************************************/
+    int GetRecvPort(int &nRecvV3Port, std::string &strError);
+
 
 private:
     ConfigSipServer m_configSipServer;//vtdu配置

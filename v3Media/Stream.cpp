@@ -193,13 +193,12 @@ void Stream::setCallBack(StreamInfoCallbackFun pFuncCb, void* pPara)
 **************************************************************************/
 int Stream::getSendPort(std::vector<int>& vecSendPort)
 {
-    mtSendList.lock();
+    std::lock_guard<std::mutex> lock(mtSendList);
     std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
     for (; itor != m_mapSendList.end(); ++itor)
     {
         vecSendPort.push_back(itor->second.nSendPort);
     }
-    mtSendList.unlock();
 
     return 1;
 }
