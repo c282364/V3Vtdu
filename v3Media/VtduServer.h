@@ -25,6 +25,7 @@
 #include "tinyxml.h"
 #include <string>
 #include <vector>
+#include <list>
 #include <mutex>
 #include <map>
 #include <thread>
@@ -102,14 +103,25 @@ public:
     void sipClientHandleRegisterFailed(void *pMsgPtr);
 
     /**************************************************************************
-    * name          : sipServerHandleInfo
-    * description   : 处理info消息
+    * name          : sipServerSaveInfoReq
+    * description   : 保存info消息
     * input         : pMsgPtr sip消息
     * output        : NA
     * return        : NA
     * remark        : NA
     **************************************************************************/
-    void sipServerHandleInfo(void *pMsgPtr);
+    void sipServerSaveInfoReq(void *pMsgPtr);
+
+    /**************************************************************************
+    * name          : sipServerHandleInfo
+    * description   : 处理info消息
+    * input         : stCurTask sip消息
+    * output        : NA
+    * return        : NA
+    * remark        : NA
+    **************************************************************************/
+    void sipServerHandleInfo(const stuGbEvent &stCurTask);
+
 
     /**************************************************************************
     * name          : sipClientHandleOptionFailed
@@ -189,6 +201,16 @@ public:
     void HandleHiCutout(char *pMsgPtr, char* szSendBuff, int* nSendBufLen);
 
     /**************************************************************************
+    * name          : threadHandleGbEvent
+    * description   : 处理国标请求线程
+    * input         : pParam 用户参数
+    * output        : NA
+    * return        : 0表示成功 小于零失败 具体见错误码定义
+    * remark        : NA
+    **************************************************************************/
+    void threadHandleGbEvent();
+
+    /**************************************************************************
     * name          : threadHiManager
     * description   : 转码模块保活管理线程
     * input         : pParam 用户参数
@@ -247,7 +269,7 @@ public:
     * return        : NA
     * remark        : NA
     **************************************************************************/
-    void sipServerHandleV3TransReady(void *pMsgPtr);
+    void sipServerHandleV3TransReady(const stuGbEvent &stCurTask);
 
     /**************************************************************************
     * name          : sipServerHandleV3TransStop
@@ -257,7 +279,7 @@ public:
     * return        : NA
     * remark        : NA
     **************************************************************************/
-    void sipServerHandleV3TransStop(void *pMsgPtr);
+    void sipServerHandleV3TransStop(const stuGbEvent &stCurTask);
 
     /**************************************************************************
     * name          : sipServerHandleV3FileStart
@@ -267,7 +289,7 @@ public:
     * return        : NA
     * remark        : NA
     **************************************************************************/
-    void sipServerHandleV3FileStart(void *pMsgPtr);
+    void sipServerHandleV3FileStart(const stuGbEvent &stCurTask);
 
     /**************************************************************************
     * name          : sipServerHandleV3FileStop
@@ -277,7 +299,7 @@ public:
     * return        : NA
     * remark        : NA
     **************************************************************************/
-    void sipServerHandleV3FileStop(void *pMsgPtr);
+    void sipServerHandleV3FileStop(const stuGbEvent &stCurTask);
 
     /**************************************************************************
     * name          : RecoverPairPort
@@ -343,7 +365,8 @@ private:
     std::map<std::string, stHiInfo> g_mapRegHiInfo;               //已注册转码模块列表
     std::map<std::string, stHiTaskInfo> g_mapVtduPreviewTaskInfo; //视频任务列表
     std::map<std::string, int> g_mapGetHirecvPort;                //hi转码模块上报接收端口列表
-    std::vector<stCutOffInfo>g_vecCutOff;                         //断流模块列表
+    std::vector<stCutOffInfo> g_vecCutOff;                         //断流模块列表
+    std::list<stuGbEvent> m_lstGBtask; //国标拉流请求列表
 
     std::mutex mtRegHi;           //已注册转码模块列表锁
     std::mutex mtVtduPreviewTask; //视频任务列表锁
@@ -351,6 +374,7 @@ private:
     std::mutex mtRecvPort;        //接收端口列表锁
     std::mutex mtGetHirecvPort;   //hi转码模块上报接收端口列表锁
     std::mutex mtCutOff;          //断流模块列表锁
+    std::mutex mtGBtask;          //国标拉流列表锁
 
     int g_nRegid;     //v3 sip注册id
     bool g_bStopHeartBeat; //v3心跳线程停止标志

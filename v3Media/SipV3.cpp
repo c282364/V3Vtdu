@@ -67,7 +67,7 @@ static void callbackCallMsg(eXosip_event_t *evt, ESipUAMsg msg)
     if (g_fnEventCB)
     {
         g_fnEventCB(msg, (void*)evt, g_pEventCBParam);
-}
+    }
 }
 
 //sip 事件处理函数

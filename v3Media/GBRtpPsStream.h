@@ -17,6 +17,29 @@
 #include "Stream.h"
 #include <thread>
 
+
+//一个完整的视频帧最大值
+#define CHANNEL_MAX_FRAME_DATA_LEN  (1024*1024)
+
+//数据缓存的最大数组
+#define RAW_DATA_ARRAY_MAX_SIZE	75
+
+/*视频帧节点类*/
+class SFrameNode
+{
+public:
+    SFrameNode()
+    {
+        pFrameData = NULL;
+        iDataLen = 0;
+        ulTimeStamp = 0;
+    }
+
+    unsigned int ulTimeStamp;
+    char *pFrameData;
+    int iDataLen;
+};
+
 class GBRtpPsOverUdpStream :public Stream
 {
 public:
@@ -108,6 +131,16 @@ public:
     void HiStreamWorking();
 
     /**************************************************************************
+    * name          : SendStreamWorking
+    * description   : 发送数据流
+    * input         : NA
+    * output        : NA
+    * return        : NA
+    * remark        : NA
+    **************************************************************************/
+    void SendStreamWorking();
+
+    /**************************************************************************
     * name          : inputFrameData
     * description   : 转码模块视频裸流传入，再转发PS流到远端国标平台
     * input         : pFrameData  数据包
@@ -150,6 +183,8 @@ private:
     int makeRtcpPacketBuff(unsigned long ulSenderId, unsigned long ssrc,
         unsigned long ulTimeStamp, unsigned short usSeq, unsigned char *pOutBuff);
 
+    int insertFrameNode(unsigned char *pFrameData, int iLen, unsigned int ulTimeStamp);
+
 public:
     int m_nRecvPort; //接收端口
     int m_nOutNum;  //发送路数
@@ -158,7 +193,15 @@ private:
     bool m_bWorkStop;       //工作线程停止标志
     std::thread m_hWorkThreadV3; //v3流接收线程句柄
     std::thread m_hWorkThreadHi; //转码模块流接收线程句柄
+    std::thread m_hWorkThreadSend; //转码模块流发送线程句柄
 
+        //raw数据数组
+    SFrameNode m_rawDataArr[RAW_DATA_ARRAY_MAX_SIZE];
+    int m_iRawArrElemCount; //raw数据数组当前元素数目
+    int m_iCurrWriteIndex; //当前读写的下标
+    int m_iCurrReadIndex;
+    std::mutex m_tLockRawDataArr;
+    
     int m_fdRtpRecv;  //rtp接收socket
     int m_fdRtcpRecv; //rtcp接收socket
 

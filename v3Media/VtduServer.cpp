@@ -14,15 +14,17 @@
 #include "VtduServer.h"
 #include "ConfigFileParse.h"
 
-//sip消息处理函数
+//sip消息处理函数 //tbd放入无锁队列
 void GB28181EventCB(ESipUAMsg msg, void *pMsgPtr, void *pParam)
 {
     if (NULL == pMsgPtr || NULL == pParam)
     {
         VTDU_LOG_E("GB28181EventCB, invaild para");
+        SipUA_AnswerInfo(pMsgPtr, 400, NULL, 0);
         return;
     }
     VtduServer* poServer = (VtduServer*)pParam;
+
     switch (msg)
     {
         /************************注册类消息*****************************/
@@ -35,12 +37,13 @@ void GB28181EventCB(ESipUAMsg msg, void *pMsgPtr, void *pParam)
         break;
 
     case SIPUA_MSG_INFO: //INFO 消息
-        poServer->sipServerHandleInfo(pMsgPtr);
+        poServer->sipServerSaveInfoReq(pMsgPtr);
         break;
     case SIPUA_MSG_OPTION_REQUESTFAILURE:
         //心跳消息发送失败，判断位sip服务端离线，启动注册线程重新注册 停止心跳线程
         poServer->sipClientHandleOptionFailed();
     default:
+        SipUA_AnswerInfo(pMsgPtr, 400, NULL, 0);
         break;
     }
 }
@@ -195,6 +198,9 @@ int VtduServer::Start()
     //处理断流回调消息线程
     static std::thread ThCBWorkingThread(&VtduServer::threadStreamCBMsgLoop, this);
 
+    //处理国标请求协议
+    static std::thread ThHandleGBEvent(&VtduServer::threadHandleGbEvent, this);
+
     return 0;
 }
 
@@ -210,6 +216,45 @@ int VtduServer::Stop()
 {
     //暂时不实现，进程为永不停止
     return 0;
+}
+
+/**************************************************************************
+* name          : threadHandleGbEvent
+* description   : 处理国标请求线程
+* input         : pParam 用户参数
+* output        : NA
+* return        : 0表示成功 小于零失败 具体见错误码定义
+* remark        : NA
+**************************************************************************/
+void VtduServer::threadHandleGbEvent()
+{
+    do 
+    {
+        int nTaskVecSize = 0;
+        stuGbEvent stCurTask;
+        memset(stCurTask.szBody, 0, sizeof(stCurTask.szBody));
+        {
+            std::lock_guard<std::mutex> lock(mtGBtask);
+            nTaskVecSize = m_lstGBtask.size();
+            if (nTaskVecSize > 0)
+            {
+                std::list<stuGbEvent>::iterator itor = m_lstGBtask.begin();
+                stCurTask.tid = itor->tid;
+                stCurTask.nBodyLen = itor->nBodyLen;
+                memcpy(stCurTask.szBody, itor->szBody, 4096);
+                m_lstGBtask.pop_front();
+            }
+        }
+
+        if (nTaskVecSize > 0)
+        {
+            sipServerHandleInfo(stCurTask);
+        }
+        else
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+    } while (1);
 }
 
 /**************************************************************************
@@ -230,11 +275,11 @@ void VtduServer::threadHiManager()
         std::map<std::string, stHiInfo>::iterator iotr = g_mapRegHiInfo.begin();
         for (; iotr != g_mapRegHiInfo.end(); )
         {
-            VTDU_LOG_I("CHECK HiTrans, id_ip: ", iotr->second.strSipId << "_" << iotr->second.strSipIp << ", task num: " << iotr->second.nTansTaskNum);
+            VTDU_LOG_I("CHECK HiTrans, id_ip: "<< iotr->second.strSipId << "_" << iotr->second.strSipIp << ", task num: " << iotr->second.nTansTaskNum);
             //15秒没有心跳 判断离线
             if (nCurTime - iotr->second.nHeartBeat > 15)
             {
-                VTDU_LOG_I("CHECK HiTrans, Hitans cut off: ", iotr->second.strSipId << "_" << iotr->second.strSipIp);
+                VTDU_LOG_I("CHECK HiTrans, Hitans cut off: "<< iotr->second.strSipId << "_" << iotr->second.strSipIp);
                 //停止接收 回收该模块所有端口
                 std::lock_guard<std::mutex> lock(mtVtduPreviewTask);
                 std::map<std::string, stHiTaskInfo>::iterator itorTask = g_mapVtduPreviewTaskInfo.begin();
@@ -556,6 +601,38 @@ void VtduServer::sipClientHandleRegisterFailed(void *pMsgPtr)
 }
 
 /**************************************************************************
+* name          : sipServerSaveInfoReq
+* description   : 保存info消息
+* input         : pMsgPtr sip消息
+* output        : NA
+* return        : NA
+* remark        : NA
+**************************************************************************/
+void VtduServer::sipServerSaveInfoReq(void *pMsgPtr)
+{
+    //避免阻塞 放入消息队列
+
+    stuGbEvent stGbEvent;
+    memset(stGbEvent.szBody, 0, sizeof(stGbEvent.szBody));
+
+    stGbEvent.tid = ((eXosip_event_t*)pMsgPtr)->tid;
+    int ret = SipUA_GetRequestBodyContent(pMsgPtr, stGbEvent.szBody, 4096);
+    if (ret <= 0)
+    {
+        SipUA_AnswerInfo(pMsgPtr, 400, NULL, 0);
+        return;
+    }
+    stGbEvent.nBodyLen = ret;
+
+    {
+        std::lock_guard<std::mutex> lock(mtGBtask);
+        m_lstGBtask.push_back(stGbEvent);
+    }
+
+    VTDU_LOG_I("recv Sip [INFO] Message：" << stGbEvent.szBody);
+}
+
+/**************************************************************************
 * name          : sipServerHandleInfo
 * description   : 处理info消息
 * input         : pMsgPtr sip消息
@@ -563,21 +640,17 @@ void VtduServer::sipClientHandleRegisterFailed(void *pMsgPtr)
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void VtduServer::sipServerHandleInfo(void *pMsgPtr)
+void VtduServer::sipServerHandleInfo(const stuGbEvent &stCurTask)
 {
-    VTDU_LOG_I("recv Sip [INFO] Message");
+    std::string strCmdType = m_oXmlParse.getMsgCmdTypeV3(stCurTask.szBody, stCurTask.nBodyLen);
+    eXosip_event_t evt;
+    evt.tid = stCurTask.tid;
 
-    char szBody[4096] = { 0 };
-    int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
-    if (ret <= 0)
-    {
-        return;
-    }
+    eXosip_event_t* pMsgPtr = &evt;
 
-    std::string strCmdType = m_oXmlParse.getMsgCmdTypeV3(szBody, ret);
     if ("MSG_READY_VIDEO_TRANS_REQ" == strCmdType)//启动预览
     {
-        sipServerHandleV3TransReady(pMsgPtr);
+        sipServerHandleV3TransReady(stCurTask);
     }
     else if ("MSG_START_VIDEO_VTDU_ACK" == strCmdType)//确认预览
     {
@@ -587,15 +660,15 @@ void VtduServer::sipServerHandleInfo(void *pMsgPtr)
     else if ("MSG_VTDU_STOP_VIDEO_REQ" == strCmdType)//停止预览
     {
         //停止接收发送流，销毁资源，回收端口
-        sipServerHandleV3TransStop(pMsgPtr);
+        sipServerHandleV3TransStop(stCurTask);
     }
     else if ("MSG_START_FILE_VOD_TASK_REQ" == strCmdType)//启动回放
     {
-        sipServerHandleV3FileStart(pMsgPtr);
+        sipServerHandleV3FileStart(stCurTask);
     }
     else if ("MSG_STOP_FILE_VOD_TASK_REQ" == strCmdType)//停止回放
     {
-        sipServerHandleV3FileStop(pMsgPtr);
+        sipServerHandleV3FileStop(stCurTask);
     }
     else
     {
@@ -641,7 +714,7 @@ void VtduServer::HandleHiTransMessage(char *pMsgPtr, int nLen, char* szSendBuff,
     std::string strCmdType = m_oXmlParse.getMsgCmdTypeV3(pMsgPtr, nLen);
     if ("MSG_HI_REG" == strCmdType)//注册
     {
-        VTDU_LOG_I("HandleHiTransMessage handle MSG_HI_REG,body: ", pMsgPtr);
+        VTDU_LOG_I("HandleHiTransMessage handle MSG_HI_REG,body: "<< pMsgPtr);
         HandleHiRegister(pMsgPtr, szSendBuff, nSendBuf);
     }
     else if ("MSG_HI_HEART" == strCmdType)//心跳
@@ -654,7 +727,7 @@ void VtduServer::HandleHiTransMessage(char *pMsgPtr, int nLen, char* szSendBuff,
     }
     else if ("MSG_HI_CUTOUT" == strCmdType || "MSG_HI_SELECT_FAILED" == strCmdType) //断流
     {
-        VTDU_LOG_I("HandleHiTransMessage handle MSG_HI_CUTOUT,body: ", pMsgPtr);
+        VTDU_LOG_I("HandleHiTransMessage handle MSG_HI_CUTOUT,body: "<< pMsgPtr);
         HandleHiCutout(pMsgPtr, szSendBuff, nSendBuf);
     }
     else
@@ -704,30 +777,25 @@ void VtduServer::HandleStreamInfoCallBack(int nType, std::string strCbInfo)
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
+void VtduServer::sipServerHandleV3TransReady(const stuGbEvent &stCurTask)
 {
     int nStatus = 400;
     std::string strError = "";
     stMediaInfo stCurMediaInfo;
     stCurMediaInfo.bTrans = false;
-    do
-    {
-        char szBody[4096] = { 0 };
-        int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
-        if (ret <= 0)
-        {
-            strError = "get msg body failed";
-            break;
-        }
-        VTDU_LOG_I("Handle V3 TransReady,body: ", szBody);
-        nStatus = m_oXmlParse.ParseXmlTransReady(szBody, stCurMediaInfo, strError);
-    } while (0);
+    char pszBody[4096] = { 0 };
+    int iBodyLen = 0;
+
+    eXosip_event_t evt;
+    evt.tid = stCurTask.tid;
+
+    eXosip_event_t* pMsgPtr = &evt;
+
+    nStatus = m_oXmlParse.ParseXmlTransReady(stCurTask.szBody, stCurMediaInfo, strError);
 
     stCurMediaInfo.strVtduRecvIp = m_configSipServer.m_strSipAddr;
     stCurMediaInfo.strVtduSendIP = m_configSipServer.m_strSipAddr;
 
-    char pszBody[4096] = { 0 };
-    int iBodyLen = 0;
     if (nStatus != 200)
     {
         iBodyLen = sprintf(pszBody, "error info: %s", strError.c_str());
@@ -737,6 +805,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
     }
     else
     {
+        //只处理udp tcp暂时不支持
         if (stCurMediaInfo.nCuTransType != 0
             || (stCurMediaInfo.nCuUserType == 1 && stCurMediaInfo.strCuGBVideoTransMode != "UDP")
             || stCurMediaInfo.nPuTransType != 0)
@@ -882,6 +951,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
             //如果 需要转码 从已注册hi 按负载情况获取 hi ip和端口
             if (bTrans)
             {
+                //tbd 获取两个 如果第一个掉线了 使用备用的。
                 nRet = GetOneHi(stCurHiInfo, strError);
                 if (nRet < 0)
                 {
@@ -893,7 +963,7 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
                     RecoverPairPort(nSendV3Port, nRecvPort);
                 }
 
-                //sip协议通知对应hi模块 告知接收端口获取hi模块接收端口， 等待 10秒后如果没有回应 重新选择一个 直接失败 换一个hi重新请求一次)
+                //tbd sip协议通知对应hi模块 告知接收端口获取hi模块接收端口， 等待 3秒后如果没有回应 重新选择一个hi请求一次)
                 int ret = m_oCommunicationHi.sendTransReq(nRecvPort, strPuInfo, stCurHiInfo.strSipIp, stCurHiInfo.nSipPort);
                 if (ret <= 0)
                 {
@@ -977,24 +1047,19 @@ void VtduServer::sipServerHandleV3TransReady(void *pMsgPtr)
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
+void VtduServer::sipServerHandleV3TransStop(const stuGbEvent &stCurTask)
 {
     int nStatus = 400;
     std::string strError = "";
     stMediaInfo stCurMediaInfo;
     stCurMediaInfo.bTrans = false;
-    do
-    {
-        char szBody[4096] = { 0 };
-        int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
-        if (ret <= 0)
-        {
-            strError = "get msg body failed";
-            break;
-        }
-        VTDU_LOG_I("Handle V3 Trans STOP,body: ", szBody);
-        nStatus = m_oXmlParse.ParseXmlTransStop(szBody, stCurMediaInfo, strError);
-    } while (0);
+
+    eXosip_event_t evt;
+    evt.tid = stCurTask.tid;
+
+    eXosip_event_t* pMsgPtr = &evt;
+
+    nStatus = m_oXmlParse.ParseXmlTransStop(stCurTask.szBody, stCurMediaInfo, strError);
 
     char pszBody[4096] = { 0 };
     int iBodyLen = 0;
@@ -1111,24 +1176,18 @@ void VtduServer::sipServerHandleV3TransStop(void *pMsgPtr)
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
+void VtduServer::sipServerHandleV3FileStart(const stuGbEvent &stCurTask)
 {
     int nStatus = 400;
     std::string strError = "";
     stMediaInfo stCurMediaInfo;
     stCurMediaInfo.bTrans = false;
-    do
-    {
-        char szBody[4096] = { 0 };
-        int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
-        if (ret <= 0)
-        {
-            strError = "get msg body failed";
-            break;
-        }
-        VTDU_LOG_I("Handle V3 File Start,body: ", szBody);
-        nStatus = m_oXmlParse.ParseXmlV3FileStart(szBody, stCurMediaInfo, strError);
-    } while (0);
+
+    eXosip_event_t evt;
+    evt.tid = stCurTask.tid;
+
+    eXosip_event_t* pMsgPtr = &evt;
+    nStatus = m_oXmlParse.ParseXmlV3FileStart(stCurTask.szBody, stCurMediaInfo, strError);
 
     char pszBody[4096] = { 0 };
     int iBodyLen = 0;
@@ -1320,24 +1379,18 @@ void VtduServer::sipServerHandleV3FileStart(void *pMsgPtr)
 * return        : NA
 * remark        : NA
 **************************************************************************/
-void VtduServer::sipServerHandleV3FileStop(void *pMsgPtr)
+void VtduServer::sipServerHandleV3FileStop(const stuGbEvent &stCurTask)
 {
     int nStatus = 400;
     std::string strError = "";
     stMediaInfo stCurMediaInfo;
     stCurMediaInfo.bTrans = false;
-    do
-    {
-        char szBody[4096] = { 0 };
-        int ret = SipUA_GetRequestBodyContent(pMsgPtr, szBody, 4096);
-        if (ret <= 0)
-        {
-            strError = "get msg body failed";
-            break;
-        }
-        VTDU_LOG_I("Handle V3 File Stop,body: ", szBody);
-        nStatus = m_oXmlParse.ParseXmlV3FileStop(szBody, stCurMediaInfo, strError);
-    } while (0);
+
+    eXosip_event_t evt;
+    evt.tid = stCurTask.tid;
+
+    eXosip_event_t* pMsgPtr = &evt;
+    nStatus = m_oXmlParse.ParseXmlV3FileStop(stCurTask.szBody, stCurMediaInfo, strError);
 
     char pszBody[4096] = { 0 };
     int iBodyLen = 0;

@@ -143,6 +143,14 @@ typedef struct tagConfigSipServer
     int m_nSendV3PortEnd;
 }ConfigSipServer;
 
+//sip ÇëÇó
+typedef struct tagSipEvent
+{
+    char szBody[4096];
+    int nBodyLen;
+    int tid;
+}stuGbEvent;
+
 //Í¼ÏñÏñËØ
 typedef struct Ratio
 {

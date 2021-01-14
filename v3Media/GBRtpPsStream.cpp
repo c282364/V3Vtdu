@@ -89,8 +89,6 @@ GBRtpPsOverUdpStream::GBRtpPsOverUdpStream(std::string strPuInfo, int nPortRecv,
 
     m_bTrans = false;
     m_bWorkStop = true;
-    //m_hWorkThreadV3 = NULL;
-    //m_hWorkThreadHi = NULL;
     m_fdRtpRecv = -1;
     m_fdRtcpRecv = -1;
 
@@ -104,6 +102,16 @@ GBRtpPsOverUdpStream::GBRtpPsOverUdpStream(std::string strPuInfo, int nPortRecv,
     m_ulTimeStamp = 0;
 
     m_strPuInfo = strPuInfo;
+
+    m_iRawArrElemCount = 0;
+    m_iCurrWriteIndex = 0;
+    m_iCurrReadIndex = 0;
+
+    for (int i = 0; i < RAW_DATA_ARRAY_MAX_SIZE; i++)
+    {
+        m_rawDataArr[i].iDataLen = 0;
+        m_rawDataArr[i].pFrameData = NULL;
+    }
 }
 GBRtpPsOverUdpStream::~GBRtpPsOverUdpStream()
 {
@@ -129,6 +137,18 @@ int GBRtpPsOverUdpStream::start(bool bTans)
         return -1;
     }
 
+    for (int i = 0; i < RAW_DATA_ARRAY_MAX_SIZE; i++)
+    {
+        m_rawDataArr[i].iDataLen = 0;
+        m_rawDataArr[i].pFrameData = new(std::nothrow) char[CHANNEL_MAX_FRAME_DATA_LEN];
+        if (NULL == m_rawDataArr[i].pFrameData)
+        {
+            stop();
+            return -1;
+        }
+
+    }
+
     m_fdRtpRecv = createFdUdp(m_nRecvPort, false, m_strLocalIp);
     if (m_fdRtpRecv <= 0)
     {
@@ -147,40 +167,14 @@ int GBRtpPsOverUdpStream::start(bool bTans)
     m_bWorkStop = false;
     if (!bTans)
     {
-#ifdef WIN32
         m_hWorkThreadV3 = std::thread(&GBRtpPsOverUdpStream::V3StreamWorking, this);
-        //m_hWorkThreadV3 = (HANDLE)_beginthreadex(
-        //    NULL,
-        //    0,
-        //    threadRecvV3,
-        //    this,
-        //    0,
-        //    NULL);
-#endif
-        //if (0 >= m_hWorkThreadV3)
-        //{
-        //    stop();
-        //    return -1;
-        //}
     }
     else
     {
-#ifdef WIN32
         m_hWorkThreadHi = std::thread(&GBRtpPsOverUdpStream::HiStreamWorking, this);
-        //m_hWorkThreadHi = (HANDLE)_beginthreadex(
-        //    NULL,
-        //    0,
-        //    threadRecvHi,
-        //    this,
-        //    0,
-        //    NULL);
-#endif
-        //if (0 >= m_hWorkThreadHi)
-        //{
-        //    stop();
-        //    return -1;
-        //}
     }
+
+    m_hWorkThreadSend = std::thread(&GBRtpPsOverUdpStream::SendStreamWorking, this);
 
     return 0;
 }
@@ -208,19 +202,11 @@ int GBRtpPsOverUdpStream::stop()
         {
             m_hWorkThreadHi.join();
         }
-        //if (0 < m_hWorkThreadV3)
-        //{
-        //    WaitForSingleObject(m_hWorkThreadV3, INFINITE);
-        //    CloseHandle(m_hWorkThreadV3);
-        //    m_hWorkThreadHi = 0;
-        //}
-        
-/*        if (m_bTrans && 0 < m_hWorkThreadHi)
+
+        if (m_hWorkThreadSend.joinable())
         {
-            WaitForSingleObject(m_hWorkThreadHi, INFINITE);
-            CloseHandle(m_hWorkThreadHi);
-            m_hWorkThreadHi = 0;
-        } */ 
+            m_hWorkThreadSend.join();
+        }
     }
 
     {
@@ -246,6 +232,16 @@ int GBRtpPsOverUdpStream::stop()
     {
         delete m_pPsBuff;
         m_pPsBuff = NULL;
+    }
+
+    for (int i = 0; i < RAW_DATA_ARRAY_MAX_SIZE; i++)
+    {
+        m_rawDataArr[i].iDataLen = 0;
+        if (NULL != m_rawDataArr[i].pFrameData)
+        {
+            delete m_rawDataArr[i].pFrameData;
+            m_rawDataArr[i].pFrameData = NULL;
+        }
     }
 
     return 0;
@@ -541,6 +537,11 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
     unsigned long ulSenderId = htonl(ulNowTick);
     bool bRecvPacket = false;
     long long i64LastRecvTime = Comm_GetSecFrom1970();
+    unsigned short usLastRtpSeq = 0;
+    //test
+    int nRecvCount = 0;
+    int nRecvInvalidCount = 0;
+
     while (!m_bWorkStop)
     {
         struct timeval tv;
@@ -582,107 +583,128 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
             {
                 struct sockaddr_in addrFrom;
                 int iAddrLen = sizeof(addrFrom);
-                ret = recvfrom(m_fdRtpRecv, szRecvBuff, iRecvBuffLen, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
+
+                if (m_iRawArrElemCount >= RAW_DATA_ARRAY_MAX_SIZE)
+                {
+                    VTDU_LOG_E("stream[%s] raw data array elem count: " << m_iRawArrElemCount);
+                    m_iRawArrElemCount = 0;
+                }
+
+                if (m_iCurrWriteIndex < 0 || m_iCurrWriteIndex >= RAW_DATA_ARRAY_MAX_SIZE)
+                {
+                    m_iCurrWriteIndex = 0;
+                }
+
+                m_tLockRawDataArr.lock();
+                ret = recvfrom(m_fdRtpRecv, m_rawDataArr[m_iCurrWriteIndex].pFrameData, CHANNEL_MAX_FRAME_DATA_LEN, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
                 if (ret > 0)
                 {
+                    nRecvCount++;
+                    if (ret < 12)
+                    {
+                        nRecvInvalidCount++;
+                        VTDU_LOG_E("rtp包太小,from: " << inet_ntoa(addrFrom.sin_addr) <<"_" << ntohs(addrFrom.sin_port) << ", len: " << ret);
+                        m_tLockRawDataArr.unlock();
+                        continue;
+                    }
+                    m_rawDataArr[m_iCurrWriteIndex].iDataLen = ret;
+
+                    unsigned char* pRtpData = (unsigned char*)m_rawDataArr[m_iCurrWriteIndex].pFrameData;
+
+                    m_iRawArrElemCount++;
+                    m_iCurrWriteIndex++;
                     bRecvPacket = true;
                     i64LastRecvTime = Comm_GetSecFrom1970();
-                    unsigned char* pRtpData = (unsigned char*)szRecvBuff;
-                    //send data 发送数据到客户端
+
+                    m_tLockRawDataArr.unlock();
+                    unsigned short seq = (pRtpData[2] << 8) | pRtpData[3];
+                    if ((usLastRtpSeq + 1) != seq) //rtp seq不连续，发现丢包
                     {
-                        std::lock_guard<std::mutex> lock(mtSendList);
-                        std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
-                        for (; itor != m_mapSendList.end(); ++itor)
+                        if ((0xFFFF == usLastRtpSeq && 0x0000 == seq) || (0x0000 == usLastRtpSeq && 0x0000 == seq))
                         {
-                            struct timeval tv;
-                            tv.tv_sec = 0;
-                            tv.tv_usec = 50 * 1000;
-                            fd_set writeFdSet;
-                            FD_ZERO(&writeFdSet);
-                            FD_SET(itor->second.fdSend, &writeFdSet);
-                            int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
-                            if (ret1 <= 0)
-                            {
-                                VTDU_LOG_E("select RtpSend failed,port: " << itor->second.nSendPort);
-                            }
-                            else
-                            {
-                                if (FD_ISSET(itor->second.fdSend, &writeFdSet))
-                                {
-                                    //发送
-                                    int sendret = sendto(itor->second.fdSend, (char*)szRecvBuff, ret, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
-                                }
-                            }
+                            //最大seq重新回到0, 或者初始seq=0，不提示丢包
+                        }
+                        else
+                        {
+                            VTDU_LOG_E("stream rtp seq error, last=" << usLastRtpSeq << ",curr=" << seq);
+                        }
+
+                    }
+                    usLastRtpSeq = seq;
+
+                    //test
+                    if (0 == nRecvCount % 50)
+                    {
+                        VTDU_LOG_I("stream get pak count:" << nRecvCount << ",invlid count:" << nRecvInvalidCount);
+                    }
+
+                    long long i64CurTime = Comm_GetMilliSecFrom1970();
+                    long long i64TimeGap = i64CurTime - i64LastTime;
+                    if (i64TimeGap >= 5000) //5秒回复一次RTCP receiver report消息
+                    {
+                        i64LastTime = i64CurTime;
+
+                        unsigned char btRtcpData[1024] = { 0 };
+                        unsigned short seq = 0;
+                        unsigned long ulTimeStamp = 0;
+                        unsigned long ssrc = 0;
+
+                        memcpy(&seq, pRtpData + 2, 2);
+                        memcpy(&ulTimeStamp, pRtpData + 4, 4);
+                        memcpy(&ssrc, pRtpData + 8, 4);
+
+                        int iRtcpDataLen = makeRtcpPacketBuff(ulSenderId, ssrc, ulTimeStamp, seq, btRtcpData);
+                        if (iRtcpDataLen > 0)
+                        {
+                            //rtcp地址为发送RTP端口自动+1
+                            unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
+                            struct sockaddr_in addrToRtcp;
+                            memcpy(&addrToRtcp, &addrFrom, iAddrLen);
+                            addrToRtcp.sin_port = htons(usRtpFromPort + 1);
+                            sendto(m_fdRtcpRecv, (char*)btRtcpData, iRtcpDataLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
                         }
                     }
                 }
             }
         }
 
-        //接收rtcp包并回复
-        fd_set readRtcpFdSet;
-        FD_ZERO(&readRtcpFdSet);
-        FD_SET(m_fdRtcpRecv, &readRtcpFdSet);
-        ret = select(m_fdRtcpRecv + 1, &readRtcpFdSet, NULL, NULL, &tv);
-        if (ret < 0)
-        {
-            VTDU_LOG_E("m_fdRtcpRecv select failed,port: " << m_nRecvPort + 1);
-            continue;
-        }
-        else if (0 == ret)
-        {
-            continue;
-        }
-        else
-        {
-            if (FD_ISSET(m_fdRtcpRecv, &readRtcpFdSet))
-            {
-                struct sockaddr_in addrFrom;
-                int iAddrLen = sizeof(addrFrom);
-                ret = recvfrom(m_fdRtcpRecv, szRecvBuff, iRecvBuffLen, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
-                if (ret > 0)
-                {
-                    if (iRecvBuffLen >= 8)
-                    {
-                        szRecvBuff[1] = 0xC9;
-                        szRecvBuff[2] = 0x00;
-                        szRecvBuff[3] = 0x01;
-                        unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
-                        struct sockaddr_in addrToRtcp;
-                        memcpy(&addrToRtcp, &addrFrom, iAddrLen);
-                        addrToRtcp.sin_port = htons(usRtpFromPort + 1);
-                        sendto(m_fdRtcpRecv, (char*)szRecvBuff, iRecvBuffLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
-                    }
-
-                    //long long i64CurTime = Comm_GetMilliSecFrom1970();
-                    //long long i64TimeGap = i64CurTime - i64LastTime;
-                    //if (i64TimeGap >= 5000) //5秒回复一次RTCP receiver report消息
-                    //{
-                    //    i64LastTime = i64CurTime;
-
-                    //    unsigned char btRtcpData[1024] = { 0 };
-                    //    unsigned short seq = 0;
-                    //    unsigned long ulTimeStamp = 0;
-                    //    unsigned long ssrc = 0;
-
-                    //    memcpy(&seq, pRtpData + 2, 2);
-                    //    memcpy(&ulTimeStamp, pRtpData + 4, 4);
-                    //    memcpy(&ssrc, pRtpData + 8, 4);
-
-                    //    int iRtcpDataLen = makeRtcpPacketBuff(ulSenderId, ssrc, ulTimeStamp, seq, btRtcpData);
-                    //    if (iRtcpDataLen > 0)
-                    //    {
-                    //        //rtcp地址为发送RTP端口自动+1
-                    //        unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
-                    //        struct sockaddr_in addrToRtcp;
-                    //        memcpy(&addrToRtcp, &addrFrom, iAddrLen);
-                    //        addrToRtcp.sin_port = htons(usRtpFromPort + 1);
-                    //        sendto(m_fdRtcpRecv, (char*)btRtcpData, iRtcpDataLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
-                    //    }
-                    //}
-                }
-            }
-        }
+        ////接收rtcp包并回复
+        //fd_set readRtcpFdSet;
+        //FD_ZERO(&readRtcpFdSet);
+        //FD_SET(m_fdRtcpRecv, &readRtcpFdSet);
+        //ret = select(m_fdRtcpRecv + 1, &readRtcpFdSet, NULL, NULL, &tv);
+        //if (ret < 0)
+        //{
+        //    VTDU_LOG_E("m_fdRtcpRecv select failed,port: " << m_nRecvPort + 1);
+        //    continue;
+        //}
+        //else if (0 == ret)
+        //{
+        //    continue;
+        //}
+        //else
+        //{
+        //    if (FD_ISSET(m_fdRtcpRecv, &readRtcpFdSet))
+        //    {
+        //        struct sockaddr_in addrFrom;
+        //        int iAddrLen = sizeof(addrFrom);
+        //        ret = recvfrom(m_fdRtcpRecv, szRecvBuff, iRecvBuffLen, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
+        //        if (ret > 0)
+        //        {
+        //            if (iRecvBuffLen >= 8)
+        //            {
+        //                szRecvBuff[1] = 0xC9;
+        //                szRecvBuff[2] = 0x00;
+        //                szRecvBuff[3] = 0x01;
+        //                unsigned short usRtpFromPort = ntohs(addrFrom.sin_port);
+        //                struct sockaddr_in addrToRtcp;
+        //                memcpy(&addrToRtcp, &addrFrom, iAddrLen);
+        //                addrToRtcp.sin_port = htons(usRtpFromPort + 1);
+        //                sendto(m_fdRtcpRecv, (char*)szRecvBuff, iRecvBuffLen, 0, (sockaddr*)&addrToRtcp, sizeof(sockaddr));
+        //            }
+        //        }
+        //    }
+        //}
     }
 
     return ;
@@ -794,8 +816,81 @@ void GBRtpPsOverUdpStream::HiStreamWorking()
     return;
 }
 
-//rtcp结构体转成字节数组,参数都要求输入网络字节序
+/**************************************************************************
+* name          : SendStreamWorking
+* description   : 发送数据流
+* input         : NA
+* output        : NA
+* return        : NA
+* remark        : NA
+**************************************************************************/
+void GBRtpPsOverUdpStream::SendStreamWorking()
+{
+    //test 
+    int nSendCount = 0;
+    int nSendSuccess = 0;
+    while (!m_bWorkStop)
+    {
+        char *pFrameData = NULL;
+        int iFrameDataLen = 0;
 
+        if (m_iRawArrElemCount <= 0)
+        {
+            //缓存数组内没帧的raw数据
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            continue;
+        }
+
+        if (m_iCurrReadIndex < 0 || m_iCurrReadIndex >= RAW_DATA_ARRAY_MAX_SIZE)
+        {
+            m_iCurrReadIndex = 0;
+        }
+
+        m_tLockRawDataArr.lock();
+        pFrameData = m_rawDataArr[m_iCurrReadIndex].pFrameData;
+        iFrameDataLen = m_rawDataArr[m_iCurrReadIndex].iDataLen;
+
+        m_iRawArrElemCount--;
+        m_iCurrReadIndex++;
+
+        m_tLockRawDataArr.unlock();
+        nSendCount++;
+        {
+            std::lock_guard<std::mutex> lock(mtSendList);
+            std::map<std::string, stSendClientInfo>::iterator itor = m_mapSendList.begin();
+            for (; itor != m_mapSendList.end(); ++itor)
+            {
+                struct timeval tv;
+                tv.tv_sec = 0;
+                tv.tv_usec = 50 * 1000;
+                fd_set writeFdSet;
+                FD_ZERO(&writeFdSet);
+                FD_SET(itor->second.fdSend, &writeFdSet);
+                int ret1 = select(itor->second.fdSend + 1, NULL, &writeFdSet, NULL, &tv);
+                if (ret1 <= 0)
+                {
+                    VTDU_LOG_E("select RtpSend failed,port: " << itor->second.nSendPort);
+                }
+                else
+                {
+                    if (FD_ISSET(itor->second.fdSend, &writeFdSet))
+                    {
+                        nSendSuccess++;
+                        //发送
+                        int sendret = sendto(itor->second.fdSend, (char*)pFrameData, iFrameDataLen, 0, (sockaddr*)&(itor->second.stClientAddr), sizeof(sockaddr));
+                    }
+                }
+            }
+        }
+        if (0 == nSendCount % 50)
+        {
+            VTDU_LOG_I("send count: " << nSendCount << "send success count: " << nSendSuccess);
+        }
+    }
+}
+
+
+//rtcp结构体转成字节数组,参数都要求输入网络字节序
 /**************************************************************************
 * name          : makeRtcpPacketBuff
 * description   : 构建rtcp包
@@ -908,5 +1003,35 @@ int GBRtpPsOverUdpStream::makeRtcpPacketBuff(unsigned long ulSenderId, unsigned 
     ret++;
 
     return ret;
+}
+
+int GBRtpPsOverUdpStream::insertFrameNode(unsigned char *pFrameData, int iLen, unsigned int ulTimeStamp)
+{
+    if (iLen <= 0 || iLen > CHANNEL_MAX_FRAME_DATA_LEN)
+    {
+        VTDU_LOG_E("frame data len[%d] out of range"<< iLen);
+        return -1;
+    }
+
+    std::lock_guard<std::mutex> lock(m_tLockRawDataArr);
+    if (m_iRawArrElemCount > RAW_DATA_ARRAY_MAX_SIZE)
+    {
+        VTDU_LOG_E("stream[%s] raw data array elem count: "<< m_iRawArrElemCount);
+        m_iRawArrElemCount = 0;
+        return -1;
+    }
+
+    if (m_iCurrWriteIndex < 0 || m_iCurrWriteIndex >= RAW_DATA_ARRAY_MAX_SIZE)
+    {
+        m_iCurrWriteIndex = 0;
+    }
+
+    memcpy(m_rawDataArr[m_iCurrWriteIndex].pFrameData, pFrameData, iLen);
+    m_rawDataArr[m_iCurrWriteIndex].iDataLen = iLen;
+    m_rawDataArr[m_iCurrWriteIndex].ulTimeStamp = ulTimeStamp;
+    m_iRawArrElemCount++;
+    m_iCurrWriteIndex++;
+
+    return iLen;
 }
 
