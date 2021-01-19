@@ -10,7 +10,7 @@ struct NaluPacket
     int				prefix;
 };
 
-#define RTP_RECV_BUFF_MAX_LEN	(1024*1024)
+#define RTP_RECV_BUFF_MAX_LEN	(2*1024)
 #define memcpy_rtcpdata(buff, pos, val, len) {memcpy((buff+pos), &val, len); pos+=len;}
 
 
@@ -595,8 +595,9 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                     m_iCurrWriteIndex = 0;
                 }
 
-                m_tLockRawDataArr.lock();
+                m_tLockRawDataArr[m_iCurrWriteIndex].lock();
                 ret = recvfrom(m_fdRtpRecv, m_rawDataArr[m_iCurrWriteIndex].pFrameData, CHANNEL_MAX_FRAME_DATA_LEN, 0, (struct sockaddr*)&addrFrom, (int*)&iAddrLen);
+				m_tLockRawDataArr[m_iCurrWriteIndex].unlock();
                 if (ret > 0)
                 {
                     nRecvCount++;
@@ -604,7 +605,6 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                     {
                         nRecvInvalidCount++;
                         VTDU_LOG_E("rtp包太小,from: " << inet_ntoa(addrFrom.sin_addr) <<"_" << ntohs(addrFrom.sin_port) << ", len: " << ret);
-                        m_tLockRawDataArr.unlock();
                         continue;
                     }
                     m_rawDataArr[m_iCurrWriteIndex].iDataLen = ret;
@@ -616,7 +616,6 @@ void GBRtpPsOverUdpStream::V3StreamWorking()
                     bRecvPacket = true;
                     i64LastRecvTime = Comm_GetSecFrom1970();
 
-                    m_tLockRawDataArr.unlock();
                     unsigned short seq = (pRtpData[2] << 8) | pRtpData[3];
                     if ((usLastRtpSeq + 1) != seq) //rtp seq不连续，发现丢包
                     {
@@ -829,6 +828,7 @@ void GBRtpPsOverUdpStream::SendStreamWorking()
     //test 
     int nSendCount = 0;
     int nSendSuccess = 0;
+
     while (!m_bWorkStop)
     {
         char *pFrameData = NULL;
@@ -846,14 +846,12 @@ void GBRtpPsOverUdpStream::SendStreamWorking()
             m_iCurrReadIndex = 0;
         }
 
-        m_tLockRawDataArr.lock();
+        m_tLockRawDataArr[m_iCurrReadIndex].lock();
         pFrameData = m_rawDataArr[m_iCurrReadIndex].pFrameData;
         iFrameDataLen = m_rawDataArr[m_iCurrReadIndex].iDataLen;
 
         m_iRawArrElemCount--;
         m_iCurrReadIndex++;
-
-        m_tLockRawDataArr.unlock();
         nSendCount++;
         {
             std::lock_guard<std::mutex> lock(mtSendList);
@@ -882,6 +880,7 @@ void GBRtpPsOverUdpStream::SendStreamWorking()
                 }
             }
         }
+        m_tLockRawDataArr[m_iCurrReadIndex - 1].unlock();
         if (0 == nSendCount % 50)
         {
             VTDU_LOG_I("send count: " << nSendCount << "send success count: " << nSendSuccess);
@@ -1005,33 +1004,4 @@ int GBRtpPsOverUdpStream::makeRtcpPacketBuff(unsigned long ulSenderId, unsigned 
     return ret;
 }
 
-int GBRtpPsOverUdpStream::insertFrameNode(unsigned char *pFrameData, int iLen, unsigned int ulTimeStamp)
-{
-    if (iLen <= 0 || iLen > CHANNEL_MAX_FRAME_DATA_LEN)
-    {
-        VTDU_LOG_E("frame data len[%d] out of range"<< iLen);
-        return -1;
-    }
-
-    std::lock_guard<std::mutex> lock(m_tLockRawDataArr);
-    if (m_iRawArrElemCount > RAW_DATA_ARRAY_MAX_SIZE)
-    {
-        VTDU_LOG_E("stream[%s] raw data array elem count: "<< m_iRawArrElemCount);
-        m_iRawArrElemCount = 0;
-        return -1;
-    }
-
-    if (m_iCurrWriteIndex < 0 || m_iCurrWriteIndex >= RAW_DATA_ARRAY_MAX_SIZE)
-    {
-        m_iCurrWriteIndex = 0;
-    }
-
-    memcpy(m_rawDataArr[m_iCurrWriteIndex].pFrameData, pFrameData, iLen);
-    m_rawDataArr[m_iCurrWriteIndex].iDataLen = iLen;
-    m_rawDataArr[m_iCurrWriteIndex].ulTimeStamp = ulTimeStamp;
-    m_iRawArrElemCount++;
-    m_iCurrWriteIndex++;
-
-    return iLen;
-}
 

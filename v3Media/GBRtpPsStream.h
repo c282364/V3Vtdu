@@ -183,8 +183,6 @@ private:
     int makeRtcpPacketBuff(unsigned long ulSenderId, unsigned long ssrc,
         unsigned long ulTimeStamp, unsigned short usSeq, unsigned char *pOutBuff);
 
-    int insertFrameNode(unsigned char *pFrameData, int iLen, unsigned int ulTimeStamp);
-
 public:
     int m_nRecvPort; //接收端口
     int m_nOutNum;  //发送路数
@@ -200,7 +198,7 @@ private:
     int m_iRawArrElemCount; //raw数据数组当前元素数目
     int m_iCurrWriteIndex; //当前读写的下标
     int m_iCurrReadIndex;
-    std::mutex m_tLockRawDataArr;
+    std::mutex m_tLockRawDataArr[RAW_DATA_ARRAY_MAX_SIZE];
     
     int m_fdRtpRecv;  //rtp接收socket
     int m_fdRtcpRecv; //rtcp接收socket
